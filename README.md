@@ -1,10 +1,10 @@
 # Reddit Scraper
 
-Scrape posts, comments, search results, and user profiles from Reddit -- fast, reliable, and without needing API keys or browser automation.
+Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no browser, no login required. MCP-ready for AI agent integration.
 
 ## What does it do?
 
-Reddit Scraper extracts structured data from Reddit using lightweight HTTP requests against `old.reddit.com` JSON endpoints. No Reddit API credentials, no browser rendering, no cookies.
+Reddit Scraper extracts structured data from Reddit using lightweight HTTP requests against `old.reddit.com` JSON endpoints. No Reddit API credentials, no browser rendering, no cookies. Returns clean JSON with consistent fields -- ready for analysis, NLP pipelines, or consumption by AI agents via MCP.
 
 **Use cases:**
 
@@ -13,6 +13,7 @@ Reddit Scraper extracts structured data from Reddit using lightweight HTTP reque
 - **Lead generation** -- find users discussing problems your product solves
 - **Content monitoring** -- watch subreddits for trending topics or keywords
 - **Academic research** -- gather Reddit data for studies and analysis
+- **AI agent tooling** -- expose as an MCP tool so AI agents can search Reddit, pull posts, and analyze discussions in real time
 
 ## Features
 
@@ -265,6 +266,34 @@ Yes. Call the actor via the Apify API and retrieve results programmatically in J
 ### What if a subreddit or user doesn't exist?
 
 The scraper logs a warning and skips invalid subreddits, users, or post URLs. Remaining valid targets are still scraped.
+
+---
+
+## MCP Integration
+
+This actor works as an MCP tool through Apify's hosted MCP server. No custom server needed.
+
+- **Endpoint:** `https://mcp.apify.com?tools=labrat011/reddit-scraper`
+- **Auth:** `Authorization: Bearer <APIFY_TOKEN>`
+- **Transport:** Streamable HTTP
+- **Works with:** Claude Desktop, Cursor, VS Code, Windsurf, Warp, Gemini CLI
+
+**Example MCP config (Claude Desktop / Cursor):**
+
+```json
+{
+    "mcpServers": {
+        "reddit-scraper": {
+            "url": "https://mcp.apify.com?tools=labrat011/reddit-scraper",
+            "headers": {
+                "Authorization": "Bearer <APIFY_TOKEN>"
+            }
+        }
+    }
+}
+```
+
+AI agents can use this actor to search Reddit for discussions, scrape subreddit posts, extract comment threads, and monitor user activity -- all as a callable MCP tool.
 
 ---
 
