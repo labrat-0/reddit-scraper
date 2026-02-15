@@ -94,7 +94,7 @@
             "type": "array",
             "description": "Full Reddit post URLs to scrape comments from.",
             "editor": "stringList",
-            "prefill": ["https://www.reddit.com/r/Python/comments/1i1x5si/what_are_some_mass_produced_products_that_use/"]
+            "prefill": ["https://www.reddit.com/r/Python/comments/1r19hu1/after_25_years_using_orms_i_switched_to_raw/"]
         },
         "maxCommentsPerPost": {
             "title": "Max comments per post",
