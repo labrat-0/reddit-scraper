@@ -1,0 +1,21 @@
+"""Entry point for the Reddit Scraper actor."""
+
+import asyncio
+import logging
+
+from apify.log import ActorLogFormatter
+
+from .main import main
+
+handler = logging.StreamHandler()
+handler.setFormatter(ActorLogFormatter())
+
+apify_logger = logging.getLogger("apify")
+apify_logger.setLevel(logging.DEBUG)
+apify_logger.addHandler(handler)
+
+src_logger = logging.getLogger("src")
+src_logger.setLevel(logging.INFO)
+src_logger.addHandler(handler)
+
+asyncio.run(main())

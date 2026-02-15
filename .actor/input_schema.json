@@ -1,0 +1,136 @@
+{
+    "title": "Reddit Scraper Input",
+    "description": "Configure what to scrape from Reddit. Choose a mode and provide the relevant parameters.",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "mode": {
+            "title": "Scraping mode",
+            "type": "string",
+            "description": "What type of Reddit data to scrape.",
+            "editor": "select",
+            "enum": ["subreddit_posts", "search", "user_profile", "post_comments"],
+            "enumTitles": [
+                "Subreddit Posts",
+                "Search Reddit",
+                "User Profile",
+                "Post Comments"
+            ],
+            "default": "subreddit_posts"
+        },
+        "subreddits": {
+            "sectionCaption": "Subreddit Posts",
+            "sectionDescription": "Scrape posts from one or more subreddits. Used when mode is 'Subreddit Posts'.",
+            "title": "Subreddits",
+            "type": "array",
+            "description": "List of subreddit names to scrape (without r/ prefix). Example: python, webdev, machinelearning",
+            "editor": "stringList",
+            "prefill": ["python"]
+        },
+        "sort": {
+            "title": "Sort order",
+            "type": "string",
+            "description": "How to sort subreddit posts.",
+            "editor": "select",
+            "enum": ["hot", "new", "top", "rising"],
+            "enumTitles": ["Hot", "New", "Top", "Rising"],
+            "default": "hot"
+        },
+        "timeFilter": {
+            "title": "Time filter (for Top sort)",
+            "type": "string",
+            "description": "Time range when sorting by Top. Only applies when sort is 'Top'.",
+            "editor": "select",
+            "enum": ["hour", "day", "week", "month", "year", "all"],
+            "enumTitles": ["Past Hour", "Past 24 Hours", "Past Week", "Past Month", "Past Year", "All Time"],
+            "default": "week"
+        },
+        "searchQuery": {
+            "sectionCaption": "Search Reddit",
+            "sectionDescription": "Search across all of Reddit or within specific subreddits. Used when mode is 'Search Reddit'.",
+            "title": "Search query",
+            "type": "string",
+            "description": "Search term to find posts across Reddit.",
+            "editor": "textfield",
+            "prefill": "machine learning"
+        },
+        "searchSubreddit": {
+            "title": "Limit search to subreddit",
+            "type": "string",
+            "description": "Optional: restrict search to a specific subreddit (without r/ prefix). Leave empty to search all of Reddit.",
+            "editor": "textfield"
+        },
+        "searchSort": {
+            "title": "Search sort order",
+            "type": "string",
+            "description": "How to sort search results.",
+            "editor": "select",
+            "enum": ["relevance", "hot", "top", "new", "comments"],
+            "enumTitles": ["Relevance", "Hot", "Top", "New", "Most Comments"],
+            "default": "relevance"
+        },
+        "usernames": {
+            "sectionCaption": "User Profiles",
+            "sectionDescription": "Scrape posts and comments from specific Reddit users. Used when mode is 'User Profile'.",
+            "title": "Usernames",
+            "type": "array",
+            "description": "List of Reddit usernames to scrape (without u/ prefix).",
+            "editor": "stringList",
+            "prefill": ["spez"]
+        },
+        "userContentType": {
+            "title": "User content type",
+            "type": "string",
+            "description": "What type of content to scrape from user profiles.",
+            "editor": "select",
+            "enum": ["overview", "submitted", "comments"],
+            "enumTitles": ["All (Posts + Comments)", "Posts Only", "Comments Only"],
+            "default": "overview"
+        },
+        "postUrls": {
+            "sectionCaption": "Post Comments",
+            "sectionDescription": "Scrape comments from specific Reddit posts. Used when mode is 'Post Comments'.",
+            "title": "Post URLs",
+            "type": "array",
+            "description": "Full Reddit post URLs to scrape comments from.",
+            "editor": "stringList",
+            "prefill": ["https://www.reddit.com/r/Python/comments/1i1x5si/what_are_some_mass_produced_products_that_use/"]
+        },
+        "maxCommentsPerPost": {
+            "title": "Max comments per post",
+            "type": "integer",
+            "description": "Maximum number of comments to extract per post. Set to 0 for no limit.",
+            "default": 100,
+            "minimum": 0
+        },
+        "maxResults": {
+            "sectionCaption": "Scraper Settings",
+            "sectionDescription": "Control output limits and proxy configuration.",
+            "title": "Max results",
+            "type": "integer",
+            "description": "Maximum number of results to return. Free users are limited to 25 results per run.",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 10000
+        },
+        "includeComments": {
+            "title": "Include comments with posts",
+            "type": "boolean",
+            "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. This is slower and uses more proxy traffic.",
+            "default": false
+        },
+        "proxyConfiguration": {
+            "sectionCaption": "Proxy Configuration",
+            "sectionDescription": "Reddit blocks datacenter IPs. Residential proxies are required for reliable scraping.",
+            "title": "Proxy configuration",
+            "type": "object",
+            "description": "Proxy settings. Residential proxies are strongly recommended -- Reddit blocks most datacenter IPs.",
+            "editor": "proxy",
+            "prefill": {
+                "useApifyProxy": true,
+                "apifyProxyGroups": ["RESIDENTIAL"]
+            }
+        }
+    },
+    "required": ["mode"]
+}

@@ -1,0 +1,34 @@
+{
+    "actorSpecification": 1,
+    "fields": {},
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "transformation": {
+                "fields": [
+                    "type",
+                    "subreddit",
+                    "title",
+                    "author",
+                    "score",
+                    "numComments",
+                    "created",
+                    "url"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "type": { "label": "Type", "format": "text" },
+                    "subreddit": { "label": "Subreddit", "format": "text" },
+                    "title": { "label": "Title", "format": "text" },
+                    "author": { "label": "Author", "format": "text" },
+                    "score": { "label": "Score", "format": "number" },
+                    "numComments": { "label": "Comments", "format": "number" },
+                    "created": { "label": "Created", "format": "date" },
+                    "url": { "label": "URL", "format": "link" }
+                }
+            }
+        }
+    }
+}
