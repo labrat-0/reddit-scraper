@@ -30,3 +30,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# GSD planning artifacts
+.planning/
