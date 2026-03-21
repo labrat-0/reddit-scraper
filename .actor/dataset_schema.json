@@ -1,6 +1,164 @@
 {
     "actorSpecification": 1,
-    "fields": {},
+    "fields": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "type": {
+                "type": "string",
+                "description": "Record type — post or comment",
+                "enum": ["post", "comment"],
+                "nullable": true,
+                "example": "post"
+            },
+            "id": {
+                "type": "string",
+                "description": "Reddit item ID (base36)",
+                "nullable": true,
+                "example": "abc123"
+            },
+            "subreddit": {
+                "type": "string",
+                "description": "Subreddit name without the r/ prefix",
+                "nullable": true,
+                "example": "technology"
+            },
+            "title": {
+                "type": "string",
+                "description": "Post title (posts only)",
+                "nullable": true,
+                "example": "An interesting discussion about technology trends"
+            },
+            "author": {
+                "type": "string",
+                "description": "Reddit username of the post or comment author",
+                "nullable": true,
+                "example": "exampleuser"
+            },
+            "selftext": {
+                "type": "string",
+                "description": "Body text of a self/text post (posts only)",
+                "nullable": true,
+                "example": "I wanted to share some thoughts on this topic..."
+            },
+            "body": {
+                "type": "string",
+                "description": "Body text of a comment (comments only)",
+                "nullable": true,
+                "example": "This is a really interesting point. I agree that..."
+            },
+            "url": {
+                "type": "string",
+                "description": "Full Reddit permalink URL of the post or comment",
+                "nullable": true,
+                "example": "https://www.reddit.com/r/technology/comments/abc123/an_interesting_post/"
+            },
+            "externalUrl": {
+                "type": "string",
+                "description": "External URL linked by the post, if it is a link post (posts only)",
+                "nullable": true,
+                "example": "https://example.com/article"
+            },
+            "score": {
+                "type": "number",
+                "description": "Net upvote score of the post or comment",
+                "nullable": true,
+                "example": 1542
+            },
+            "upvoteRatio": {
+                "type": "number",
+                "description": "Ratio of upvotes to total votes as a decimal (posts only)",
+                "nullable": true,
+                "example": 0.95
+            },
+            "numComments": {
+                "type": "number",
+                "description": "Total number of comments on the post (posts only)",
+                "nullable": true,
+                "example": 237
+            },
+            "created": {
+                "type": "string",
+                "description": "ISO 8601 UTC timestamp when the item was created",
+                "nullable": true,
+                "example": "2025-01-15T12:00:00+00:00"
+            },
+            "isNSFW": {
+                "type": "boolean",
+                "description": "Whether the post is marked as Not Safe For Work (posts only)",
+                "nullable": true,
+                "example": false
+            },
+            "isSpoiler": {
+                "type": "boolean",
+                "description": "Whether the post is marked as a spoiler (posts only)",
+                "nullable": true,
+                "example": false
+            },
+            "isPinned": {
+                "type": "boolean",
+                "description": "Whether the post is stickied/pinned by a moderator (posts only)",
+                "nullable": true,
+                "example": false
+            },
+            "flair": {
+                "type": "string",
+                "description": "Link flair text applied to the post (posts only)",
+                "nullable": true,
+                "example": "Discussion"
+            },
+            "awards": {
+                "type": "number",
+                "description": "Total number of awards received",
+                "nullable": true,
+                "example": 3
+            },
+            "domain": {
+                "type": "string",
+                "description": "Domain of the linked URL for link posts (posts only)",
+                "nullable": true,
+                "example": "self.technology"
+            },
+            "isVideo": {
+                "type": "boolean",
+                "description": "Whether the post contains a video (posts only)",
+                "nullable": true,
+                "example": false
+            },
+            "thumbnail": {
+                "type": "string",
+                "description": "URL of the post thumbnail image (posts only)",
+                "nullable": true,
+                "example": "https://example.com/thumb.jpg"
+            },
+            "postId": {
+                "type": "string",
+                "description": "ID of the parent post this comment belongs to (comments only)",
+                "nullable": true,
+                "example": "abc123"
+            },
+            "parentId": {
+                "type": "string",
+                "description": "Reddit fullname of the parent item (t1_ for comment, t3_ for post) (comments only)",
+                "nullable": true,
+                "example": "t3_abc123"
+            },
+            "depth": {
+                "type": "number",
+                "description": "Nesting depth of the comment in the thread (0 = top-level) (comments only)",
+                "nullable": true,
+                "example": 0
+            },
+            "isSubmitter": {
+                "type": "boolean",
+                "description": "Whether the comment author is the original post submitter (comments only)",
+                "nullable": true,
+                "example": false
+            }
+        },
+        "required": [],
+        "additionalProperties": true
+    },
     "views": {
         "overview": {
             "title": "Overview",

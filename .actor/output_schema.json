@@ -1,11 +1,12 @@
 {
     "actorOutputSchemaVersion": 1,
     "title": "Reddit Scraper Results",
-    "description": "Posts, comments, and user data scraped from Reddit.",
+    "description": "Dataset containing scraped Reddit posts and comments.",
     "properties": {
         "results": {
             "type": "string",
             "title": "Results",
+            "description": "Dataset containing all scraped posts and comments",
             "template": "{{links.apiDefaultDatasetUrl}}/items"
         }
     }
