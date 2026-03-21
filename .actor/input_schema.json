@@ -1,43 +1,45 @@
 {
     "title": "Reddit Scraper Input",
-    "description": "Configure what to scrape from Reddit. Choose a mode and provide the relevant parameters.",
+    "description": "Scrape Reddit posts, comments, search results, and user profiles. No API keys required. Batch search across multiple queries in one run.",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
         "mode": {
-            "title": "Scraping mode",
+            "sectionCaption": "🎯 Scraping Mode",
+            "sectionDescription": "Choose what to scrape: posts from a subreddit, search results, user profiles, or comments on specific posts.",
+            "title": "🎯 Scraping Mode",
             "type": "string",
             "description": "What type of Reddit data to scrape.",
             "editor": "select",
             "enum": ["subreddit_posts", "search", "user_profile", "post_comments"],
             "enumTitles": [
-                "Subreddit Posts",
-                "Search Reddit",
-                "User Profile",
-                "Post Comments"
+                "📋 Subreddit Posts — scrape top/hot/new posts from subreddits",
+                "🔍 Search Reddit — find posts matching keywords",
+                "👤 User Profile — scrape a user's posts and comments",
+                "💬 Post Comments — extract full comment threads"
             ],
             "default": "subreddit_posts"
         },
         "subreddits": {
-            "sectionCaption": "Subreddit Posts",
-            "sectionDescription": "Scrape posts from one or more subreddits. Used when mode is 'Subreddit Posts'.",
-            "title": "Subreddits",
+            "sectionCaption": "📋 Subreddit Posts",
+            "sectionDescription": "Scrape posts from one or more subreddits. Supports multiple subreddits in a single run.",
+            "title": "📌 Subreddits",
             "type": "array",
             "description": "List of subreddit names to scrape (without r/ prefix). Example: python, webdev, machinelearning",
             "editor": "stringList",
             "prefill": ["python"]
         },
         "sort": {
-            "title": "Sort order",
+            "title": "🔃 Sort Order",
             "type": "string",
             "description": "How to sort subreddit posts.",
             "editor": "select",
             "enum": ["hot", "new", "top", "rising"],
-            "enumTitles": ["Hot", "New", "Top", "Rising"],
+            "enumTitles": ["🔥 Hot", "🆕 New", "🏆 Top", "📈 Rising"],
             "default": "hot"
         },
         "timeFilter": {
-            "title": "Time filter (for Top sort)",
+            "title": "📅 Time Filter (Top sort only)",
             "type": "string",
             "description": "Time range when sorting by Top. Only applies when sort is 'Top'.",
             "editor": "select",
@@ -46,85 +48,92 @@
             "default": "week"
         },
         "searchQuery": {
-            "sectionCaption": "Search Reddit",
-            "sectionDescription": "Search across all of Reddit or within specific subreddits. Used when mode is 'Search Reddit'.",
-            "title": "Search query",
+            "sectionCaption": "🔍 Search Reddit",
+            "sectionDescription": "Search across all of Reddit or within a specific subreddit. Use Search Queries List below to search multiple terms in one run.",
+            "title": "🔍 Search Query",
             "type": "string",
-            "description": "Search term to find posts across Reddit.",
+            "description": "Keyword or phrase to search across Reddit. Use searchQueriesList for multiple queries in one run.",
             "editor": "textfield",
             "prefill": "machine learning"
         },
+        "searchQueriesList": {
+            "title": "🔍 Search Queries List (Batch Search)",
+            "type": "array",
+            "description": "Run multiple search queries in a single job — results are merged and deduplicated by post ID. Overrides the single Search Query field when provided. Ideal for brand monitoring, competitor research, and topic mapping. Example: [\"ChatGPT vs Claude\", \"best LLM 2025\", \"AI coding assistant\"]",
+            "editor": "json",
+            "prefill": []
+        },
         "searchSubreddit": {
-            "title": "Limit search to subreddit",
+            "title": "📌 Limit Search to Subreddit",
             "type": "string",
             "description": "Optional: restrict search to a specific subreddit (without r/ prefix). Leave empty to search all of Reddit.",
             "editor": "textfield"
         },
         "searchSort": {
-            "title": "Search sort order",
+            "title": "🔃 Search Sort Order",
             "type": "string",
             "description": "How to sort search results.",
             "editor": "select",
             "enum": ["relevance", "hot", "top", "new", "comments"],
-            "enumTitles": ["Relevance", "Hot", "Top", "New", "Most Comments"],
+            "enumTitles": ["⭐ Relevance", "🔥 Hot", "🏆 Top", "🆕 New", "💬 Most Comments"],
             "default": "relevance"
         },
         "usernames": {
-            "sectionCaption": "User Profiles",
-            "sectionDescription": "Scrape posts and comments from specific Reddit users. Used when mode is 'User Profile'.",
-            "title": "Usernames",
+            "sectionCaption": "👤 User Profiles",
+            "sectionDescription": "Scrape posts and/or comments from specific Reddit users. Supports multiple usernames in one run.",
+            "title": "👤 Usernames",
             "type": "array",
             "description": "List of Reddit usernames to scrape (without u/ prefix).",
             "editor": "stringList",
             "prefill": ["spez"]
         },
         "userContentType": {
-            "title": "User content type",
+            "title": "📋 User Content Type",
             "type": "string",
             "description": "What type of content to scrape from user profiles.",
             "editor": "select",
             "enum": ["overview", "submitted", "comments"],
-            "enumTitles": ["All (Posts + Comments)", "Posts Only", "Comments Only"],
+            "enumTitles": ["📊 All (Posts + Comments)", "📝 Posts Only", "💬 Comments Only"],
             "default": "overview"
         },
         "postUrls": {
-            "sectionCaption": "Post Comments",
-            "sectionDescription": "Scrape comments from specific Reddit posts. Used when mode is 'Post Comments'.",
-            "title": "Post URLs",
+            "sectionCaption": "💬 Post Comments",
+            "sectionDescription": "Extract full comment threads from specific Reddit posts. Supports multiple post URLs in one run.",
+            "title": "💬 Post URLs",
             "type": "array",
-            "description": "Full Reddit post URLs to scrape comments from.",
+            "description": "Full Reddit post URLs to extract comments from.",
             "editor": "stringList",
             "prefill": ["https://www.reddit.com/r/Python/comments/1r19hu1/after_25_years_using_orms_i_switched_to_raw/"]
         },
         "maxCommentsPerPost": {
-            "title": "Max comments per post",
+            "title": "🔢 Max Comments per Post",
             "type": "integer",
             "description": "Maximum number of comments to extract per post. Set to 0 for no limit.",
             "default": 100,
             "minimum": 0
         },
         "maxResults": {
-            "sectionCaption": "Scraper Settings",
-            "sectionDescription": "Control output limits and proxy configuration.",
-            "title": "Max results",
+            "sectionCaption": "⚙️ Scraper Settings",
+            "sectionDescription": "Control output volume and proxy configuration.",
+            "title": "🔢 Max Results",
             "type": "integer",
-            "description": "Maximum number of results to return. Free users are limited to 25 results per run.",
+            "description": "Maximum number of results to return. Free users are limited to 25 results per run. Subscribe for up to 10,000.",
             "default": 100,
             "minimum": 1,
             "maximum": 10000
         },
         "includeComments": {
-            "title": "Include comments with posts",
+            "title": "💬 Include Comments with Posts",
             "type": "boolean",
-            "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. This is slower and uses more proxy traffic.",
+            "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. Slower and uses more proxy traffic.",
             "default": false
         },
         "proxyConfiguration": {
-            "sectionCaption": "Proxy Configuration",
+            "sectionCaption": "🔒 Proxy Configuration",
             "sectionDescription": "Reddit blocks datacenter IPs. Residential proxies are required for reliable scraping.",
-            "title": "Proxy configuration",
+            "title": "🔒 Proxy Configuration",
             "type": "object",
-            "description": "Proxy settings. Residential proxies are strongly recommended -- Reddit blocks most datacenter IPs.",
+            "description": "Proxy settings. Residential proxies are strongly recommended — Reddit blocks most datacenter IPs.",
             "editor": "proxy",
             "prefill": {
                 "useApifyProxy": true,

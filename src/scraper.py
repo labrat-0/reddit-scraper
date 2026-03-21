@@ -76,43 +76,51 @@ class RedditScraper:
     # --- Mode 2: Search ---
 
     async def _scrape_search(self) -> AsyncIterator[dict[str, Any]]:
-        """Search Reddit for posts matching a query."""
-        query = self.config.search_query
-        logger.info(f"Searching Reddit for: '{query}'")
+        """Search Reddit for posts matching one or more queries."""
+        # Build the list of queries to run
+        queries = self.config.search_queries_list or [self.config.search_query]
+        seen_ids: set[str] = set()
 
-        if self.config.search_subreddit:
-            url = f"{BASE_URL}/r/{self.config.search_subreddit}/search.json"
-            params: dict[str, Any] = {
-                "q": query,
-                "restrict_sr": "on",
-                "sort": self.config.search_sort.value,
-                "limit": 100,
-                "raw_json": 1,
-            }
-        else:
-            url = f"{BASE_URL}/search.json"
-            params = {
-                "q": query,
-                "sort": self.config.search_sort.value,
-                "limit": 100,
-                "raw_json": 1,
-            }
+        for query in queries:
+            logger.info(f"Searching Reddit for: '{query}'")
 
-        if self.config.search_sort.value == "top":
-            params["t"] = self.config.time_filter.value
+            if self.config.search_subreddit:
+                url = f"{BASE_URL}/r/{self.config.search_subreddit}/search.json"
+                params: dict[str, Any] = {
+                    "q": query,
+                    "restrict_sr": "on",
+                    "sort": self.config.search_sort.value,
+                    "limit": 100,
+                    "raw_json": 1,
+                }
+            else:
+                url = f"{BASE_URL}/search.json"
+                params = {
+                    "q": query,
+                    "sort": self.config.search_sort.value,
+                    "limit": 100,
+                    "raw_json": 1,
+                }
 
-        async for post in self._paginate_listing(url, params):
-            formatted = format_post(post)
-            yield formatted
+            if self.config.search_sort.value == "top":
+                params["t"] = self.config.time_filter.value
 
-            if self.config.include_comments:
-                subreddit = post.get("subreddit", "")
+            async for post in self._paginate_listing(url, params):
                 post_id = post.get("id", "")
-                if subreddit and post_id:
-                    async for comment in self._fetch_comments_for_post(
-                        subreddit, post_id
-                    ):
-                        yield comment
+                if post_id in seen_ids:
+                    continue
+                seen_ids.add(post_id)
+
+                formatted = format_post(post)
+                yield formatted
+
+                if self.config.include_comments:
+                    subreddit = post.get("subreddit", "")
+                    if subreddit and post_id:
+                        async for comment in self._fetch_comments_for_post(
+                            subreddit, post_id
+                        ):
+                            yield comment
 
     # --- Mode 3: User Profiles ---
 

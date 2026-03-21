@@ -61,6 +61,7 @@ class ScraperInput(BaseModel):
 
     # Search mode
     search_query: str = ""
+    search_queries_list: list[str] = Field(default_factory=list)
     search_subreddit: str = ""
     search_sort: SearchSort = SearchSort.RELEVANCE
 
@@ -122,6 +123,7 @@ class ScraperInput(BaseModel):
             sort=raw.get("sort", "hot"),
             time_filter=raw.get("timeFilter", "week"),
             search_query=raw.get("searchQuery", ""),
+            search_queries_list=raw.get("searchQueriesList", []),
             search_subreddit=raw.get("searchSubreddit", ""),
             search_sort=raw.get("searchSort", "relevance"),
             usernames=raw.get("usernames", []),
@@ -136,8 +138,8 @@ class ScraperInput(BaseModel):
         """Return an error message if input is invalid for the selected mode."""
         if self.mode == ScrapingMode.SUBREDDIT_POSTS and not self.subreddits:
             return "At least one subreddit is required for 'Subreddit Posts' mode."
-        if self.mode == ScrapingMode.SEARCH and not self.search_query:
-            return "A search query is required for 'Search Reddit' mode."
+        if self.mode == ScrapingMode.SEARCH and not self.search_query and not self.search_queries_list:
+            return "A search query or queries list is required for 'Search Reddit' mode."
         if self.mode == ScrapingMode.USER_PROFILE and not self.usernames:
             return "At least one username is required for 'User Profile' mode."
         if self.mode == ScrapingMode.POST_COMMENTS and not self.post_urls:

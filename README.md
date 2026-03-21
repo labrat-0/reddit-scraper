@@ -1,82 +1,38 @@
 # Reddit Scraper
 
-Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no browser, no login required. MCP-ready for AI agent integration.
+Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no login, no browser required. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
 
 ## What does it do?
 
-Reddit Scraper extracts structured data from Reddit using lightweight HTTP requests against `old.reddit.com` JSON endpoints. No Reddit API credentials, no browser rendering, no cookies. Returns clean JSON with consistent fields -- ready for analysis, NLP pipelines, or consumption by AI agents via MCP.
+Reddit Scraper pulls structured data from Reddit using `old.reddit.com` JSON endpoints — no OAuth, no Reddit API credentials, no headless browser. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
 
-**Use cases:**
+**v1.1.0:** Added batch search (`searchQueriesList`) — run multiple queries in a single job with automatic deduplication by post ID.
 
-- **Market research** -- track what people are saying about your product, competitors, or industry
-- **Sentiment analysis** -- collect posts and comments for NLP pipelines
-- **Lead generation** -- find users discussing problems your product solves
-- **Content monitoring** -- watch subreddits for trending topics or keywords
-- **Academic research** -- gather Reddit data for studies and analysis
-- **AI agent tooling** -- expose as an MCP tool so AI agents can search Reddit, pull posts, and analyze discussions in real time
+## Who uses this
+
+- **Brand and market researchers** — monitor what people say about your product, competitors, or industry across thousands of threads without manual browsing
+- **NLP and sentiment analysis engineers** — collect topic-specific posts and comments at scale for training classifiers, fine-tuning embeddings, or labeling datasets
+- **AI/LLM training data teams** — harvest diverse, high-quality human-written text from specific communities and topics
+- **Social media analysts and journalists** — track narratives, investigate communities, map opinion shifts over time
+- **Developers and AI agents** — call via Apify API or expose as an MCP tool so agents can query Reddit in real time
 
 ## Features
 
-- **4 scraping modes:** subreddit posts, Reddit search, user profiles, and post comments
-- **Sort and filter:** hot, new, top (with time ranges), rising
-- **Comment trees:** full recursive comment extraction with depth tracking
-- **Search across Reddit** or within a specific subreddit
-- **User profiles:** scrape posts, comments, or both from any public user
-- **Automatic pagination** via Reddit's `after` cursor system
-- **Rate limiting** built in (7s between requests to stay under Reddit's limits)
-- **Retry logic** with exponential backoff on 429s and proxy rotation on 403s
-- **State persistence** -- survives Apify actor migrations mid-run
-
-## What data does it extract?
-
-**Posts:**
-
-| Field | Description |
-|-------|-------------|
-| `type` | Always `"post"` |
-| `id` | Reddit post ID |
-| `subreddit` | Subreddit name |
-| `title` | Post title |
-| `author` | Author username |
-| `selftext` | Post body text |
-| `url` | Reddit permalink |
-| `externalUrl` | Link URL (for link posts) |
-| `score` | Net upvotes |
-| `upvoteRatio` | Upvote percentage (0.0-1.0) |
-| `numComments` | Comment count |
-| `created` | ISO 8601 UTC timestamp |
-| `isNSFW` | NSFW flag |
-| `isSpoiler` | Spoiler flag |
-| `isPinned` | Pinned/stickied flag |
-| `flair` | Post flair text |
-| `awards` | Total awards received |
-| `domain` | Link domain |
-| `isVideo` | Video post flag |
-| `thumbnail` | Thumbnail URL |
-
-**Comments:**
-
-| Field | Description |
-|-------|-------------|
-| `type` | Always `"comment"` |
-| `id` | Comment ID |
-| `postId` | Parent post ID |
-| `subreddit` | Subreddit name |
-| `author` | Author username |
-| `body` | Comment text |
-| `score` | Net upvotes |
-| `created` | ISO 8601 UTC timestamp |
-| `parentId` | Parent comment/post ID |
-| `depth` | Nesting depth (0 = top-level) |
-| `isSubmitter` | Whether author is the post's OP |
-| `awards` | Total awards received |
-| `url` | Reddit permalink |
+- **4 scraping modes:** subreddit posts, Reddit search, user profiles, post comments
+- **Batch search:** run multiple search queries in a single job — results merged and deduplicated by post ID
+- **Multi-target:** subreddits, usernames, and post URLs all accept lists — scrape many at once
+- **Sort and filter:** hot, new, top (with configurable time range), rising
+- **Full comment trees:** recursive extraction with depth tracking
+- **Search scope:** across all of Reddit or restricted to a single subreddit
+- **User profiles:** posts only, comments only, or both
+- **Pagination:** automatic via Reddit's `after` cursor
+- **Rate limiting:** 7s between requests to stay under Reddit's unauthenticated limits
+- **Retry logic:** exponential backoff on 429, proxy rotation on 403
+- **State persistence:** survives Apify actor migrations mid-run
 
 ---
 
-## Input
-
-Choose a scraping mode and provide the relevant parameters.
+## Scraping modes
 
 ### Mode 1: Subreddit Posts
 
@@ -86,27 +42,46 @@ Scrape posts from one or more subreddits.
 {
     "mode": "subreddit_posts",
     "subreddits": ["python", "machinelearning", "webdev"],
-    "sort": "hot",
-    "maxResults": 100
+    "sort": "top",
+    "timeFilter": "month",
+    "maxResults": 200
 }
 ```
 
-Sort options: `hot`, `new`, `top`, `rising`. When using `top`, you can set `timeFilter` to `hour`, `day`, `week`, `month`, `year`, or `all`.
+Sort options: `hot`, `new`, `top`, `rising`. `timeFilter` applies only when `sort` is `top`: `hour`, `day`, `week`, `month`, `year`, `all`.
+
+---
 
 ### Mode 2: Search Reddit
 
-Search across all of Reddit or within a specific subreddit.
+Search across all of Reddit or within a specific subreddit. Use `searchQueriesList` to run multiple queries in one job.
+
+**Single query:**
 
 ```json
 {
     "mode": "search",
     "searchQuery": "best python web framework 2025",
     "searchSort": "relevance",
-    "maxResults": 50
+    "maxResults": 100
 }
 ```
 
-To restrict search to a subreddit:
+**Batch search (v1.1.0):**
+
+```json
+{
+    "mode": "search",
+    "searchQueriesList": ["ChatGPT vs Claude", "best LLM 2025", "AI coding assistant"],
+    "searchSort": "top",
+    "timeFilter": "year",
+    "maxResults": 300
+}
+```
+
+Results across all queries are merged and deduplicated by post ID. `searchQueriesList` overrides `searchQuery` when provided.
+
+**Restricted to a subreddit:**
 
 ```json
 {
@@ -120,6 +95,8 @@ To restrict search to a subreddit:
 
 Search sort options: `relevance`, `hot`, `top`, `new`, `comments`.
 
+---
+
 ### Mode 3: User Profile
 
 Scrape posts and/or comments from Reddit user profiles.
@@ -127,13 +104,15 @@ Scrape posts and/or comments from Reddit user profiles.
 ```json
 {
     "mode": "user_profile",
-    "usernames": ["spez", "GovSchwarzenegger"],
+    "usernames": ["user1", "user2"],
     "userContentType": "overview",
-    "maxResults": 100
+    "maxResults": 200
 }
 ```
 
 Content type options: `overview` (posts + comments), `submitted` (posts only), `comments` (comments only).
+
+---
 
 ### Mode 4: Post Comments
 
@@ -143,70 +122,108 @@ Extract the full comment tree from specific Reddit posts.
 {
     "mode": "post_comments",
     "postUrls": [
-        "https://www.reddit.com/r/Python/comments/1i1x5si/what_are_some_mass_produced_products_that_use/"
+        "https://www.reddit.com/r/Python/comments/1r19hu1/after_25_years_using_orms_i_switched_to_raw/",
+        "https://www.reddit.com/r/machinelearning/comments/abc123/some_post/"
     ],
-    "maxCommentsPerPost": 100
+    "maxCommentsPerPost": 500
 }
 ```
 
-### Additional Options
+---
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `includeComments` | `false` | When scraping posts (subreddit or search mode), also fetch comments for each post. Slower and uses more proxy traffic. |
-| `maxResults` | `100` | Maximum total results to return (max 10,000). Free users are limited to 25 per run. |
-| `proxyConfiguration` | Residential | Proxy settings. **Residential proxies are required** -- Reddit blocks datacenter IPs. |
+## Input parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | string | `subreddit_posts` | Scraping mode: `subreddit_posts`, `search`, `user_profile`, `post_comments` |
+| `subreddits` | string[] | — | Subreddit names (without r/ prefix). Mode: subreddit_posts |
+| `sort` | string | `hot` | Sort order: `hot`, `new`, `top`, `rising` |
+| `timeFilter` | string | `week` | Time range for Top sort: `hour`, `day`, `week`, `month`, `year`, `all` |
+| `searchQuery` | string | — | Single search term. Mode: search |
+| `searchQueriesList` | string[] | `[]` | Multiple search queries — merged and deduplicated. Overrides `searchQuery`. Mode: search |
+| `searchSubreddit` | string | — | Restrict search to one subreddit. Leave empty for all of Reddit |
+| `searchSort` | string | `relevance` | Search sort: `relevance`, `hot`, `top`, `new`, `comments` |
+| `usernames` | string[] | — | Reddit usernames (without u/ prefix). Mode: user_profile |
+| `userContentType` | string | `overview` | `overview` (posts+comments), `submitted`, `comments` |
+| `postUrls` | string[] | — | Full Reddit post URLs. Mode: post_comments |
+| `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no limit |
+| `maxResults` | integer | `100` | Max total results (1–10,000). Free tier: 25 per run |
+| `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Slower, higher proxy cost |
+| `proxyConfiguration` | object | Residential | Proxy settings. Residential proxies required |
 
 ---
 
 ## Output
 
-Results are saved to the default dataset. You can download them in JSON, CSV, Excel, or XML format from the Output tab.
+Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML from the Output tab.
 
-### Example: Post output
+### Post fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"post"` |
+| `id` | string | Reddit post ID |
+| `subreddit` | string | Subreddit name |
+| `title` | string | Post title |
+| `author` | string | Author username |
+| `selftext` | string | Post body text (empty for link posts) |
+| `url` | string | Reddit permalink |
+| `externalUrl` | string | Linked URL (for link posts) |
+| `score` | integer | Net upvotes |
+| `upvoteRatio` | float | Upvote percentage (0.0–1.0) |
+| `numComments` | integer | Total comment count |
+| `created` | string | ISO 8601 UTC timestamp |
+| `isNSFW` | boolean | NSFW flag |
+| `isSpoiler` | boolean | Spoiler flag |
+| `isPinned` | boolean | Stickied/pinned flag |
+| `flair` | string | Post flair text |
+| `awards` | integer | Total awards received |
+| `domain` | string | Link domain |
+| `isVideo` | boolean | Video post flag |
+| `thumbnail` | string | Thumbnail URL |
+
+### Comment fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"comment"` |
+| `id` | string | Comment ID |
+| `postId` | string | Parent post ID |
+| `subreddit` | string | Subreddit name |
+| `author` | string | Author username |
+| `body` | string | Comment text |
+| `score` | integer | Net upvotes |
+| `created` | string | ISO 8601 UTC timestamp |
+| `parentId` | string | Parent comment or post ID |
+| `depth` | integer | Nesting depth (0 = top-level) |
+| `isSubmitter` | boolean | Whether author is the post's OP |
+| `awards` | integer | Total awards received |
+| `url` | string | Reddit permalink |
+
+### Example output
 
 ```json
 {
     "type": "post",
-    "id": "1i1x5si",
+    "id": "1r19hu1",
     "subreddit": "Python",
-    "title": "What are some mass-produced products that use Python?",
+    "title": "After 25 years using ORMs, I switched to raw SQL",
     "author": "example_user",
-    "selftext": "I'm curious about real-world products...",
-    "url": "https://www.reddit.com/r/Python/comments/1i1x5si/what_are_some_mass_produced_products_that_use/",
+    "selftext": "Here's what I learned after making the switch...",
+    "url": "https://www.reddit.com/r/Python/comments/1r19hu1/...",
     "externalUrl": "",
-    "score": 342,
-    "upvoteRatio": 0.95,
-    "numComments": 127,
-    "created": "2025-01-15T14:23:01+00:00",
+    "score": 1842,
+    "upvoteRatio": 0.97,
+    "numComments": 312,
+    "created": "2025-03-01T09:14:22+00:00",
     "isNSFW": false,
     "isSpoiler": false,
     "isPinned": false,
     "flair": "Discussion",
-    "awards": 2,
+    "awards": 5,
     "domain": "self.Python",
     "isVideo": false,
     "thumbnail": "self"
-}
-```
-
-### Example: Comment output
-
-```json
-{
-    "type": "comment",
-    "id": "m7k2p1a",
-    "postId": "1i1x5si",
-    "subreddit": "Python",
-    "author": "commenter123",
-    "body": "Dropbox was famously written in Python...",
-    "score": 89,
-    "created": "2025-01-15T15:01:44+00:00",
-    "parentId": "t3_1i1x5si",
-    "depth": 0,
-    "isSubmitter": false,
-    "awards": 0,
-    "url": "https://www.reddit.com/r/Python/comments/1i1x5si/what_are_some_mass_produced_products_that_use/m7k2p1a/"
 }
 ```
 
@@ -214,71 +231,27 @@ Results are saved to the default dataset. You can download them in JSON, CSV, Ex
 
 ## Cost
 
-This actor uses **pay-per-event (PPE) pricing**. You pay only for the results you get.
+This actor uses **pay-per-event (PPE) pricing** — you pay only for results you get.
 
-- **Proxy traffic** is paid by the user (residential proxies required, approximately $12.50/GB on Apify)
-- Typical cost: roughly **$0.50-$1.00 per 1,000 results** depending on proxy usage
-- Free tier: **25 results per run** (no subscription required)
+- **Proxy traffic** is billed separately (residential proxies run ~$12.50/GB on Apify)
+- Typical cost: **$0.50–$1.00 per 1,000 results** depending on proxy usage and whether comments are included
+- **Free tier: 25 results per run** — no subscription required
+- **Paid tier: up to 10,000 results per run**
 
-Reddit's rate limits mean each request takes ~7 seconds. A run scraping 100 posts from a single subreddit takes about 1-2 minutes.
-
----
-
-## Technical details
-
-- Uses `old.reddit.com` JSON endpoints (no API keys, no OAuth, no browser)
-- Rate limited to ~10 requests/minute (built-in 7-second interval)
-- Automatic retry with exponential backoff on rate limits (429)
-- Proxy rotation on IP blocks (403)
-- Pagination via Reddit's `after` cursor (up to ~1,000 items per listing)
-- Results pushed in batches of 25 for efficiency
-- Actor state persisted across migrations
-
----
-
-## Limitations
-
-- Reddit caps unauthenticated listing pagination at roughly 1,000 items
-- "Load more comments" nodes in deep comment trees are not expanded (only initially loaded comments are extracted)
-- Datacenter proxies will not work -- Reddit blocks them. Use residential proxies.
-- Rate limit of ~10 requests/minute means large scrapes take time
-
----
-
-## FAQ
-
-### Is it legal to scrape Reddit?
-
-Web scraping of publicly available data is generally legal, as established by the *hiQ Labs v. LinkedIn* ruling. This actor only accesses public Reddit data that anyone can view in a browser. It does not bypass any login walls, CAPTCHAs, or access private content.
-
-### Why do I need residential proxies?
-
-Since June 2025, Reddit blocks nearly all datacenter IP ranges. Residential proxies route requests through real ISP connections, which Reddit does not block.
-
-### How fast is it?
-
-Due to Reddit's rate limits, the scraper makes about 8-10 requests per minute. Scraping 100 posts from a subreddit takes 1-2 minutes. Adding comments to each post increases run time significantly.
-
-### Can I use this with the Apify API?
-
-Yes. Call the actor via the Apify API and retrieve results programmatically in JSON, CSV, or other formats. Works with the Apify Python and JavaScript clients.
-
-### What if a subreddit or user doesn't exist?
-
-The scraper logs a warning and skips invalid subreddits, users, or post URLs. Remaining valid targets are still scraped.
+Reddit's rate limits mean roughly 8–10 requests per minute. A 100-post subreddit run takes 1–2 minutes. Enabling `includeComments` multiplies run time by the average number of comments per post.
 
 ---
 
 ## MCP Integration
 
-This actor works as an MCP tool through Apify's hosted MCP server. No custom server needed.
+This actor works as an MCP tool via Apify's hosted MCP server. No custom server needed — AI agents can call it directly.
 
 - **Endpoint:** `https://mcp.apify.com?tools=labrat011/reddit-scraper`
 - **Auth:** `Authorization: Bearer <APIFY_TOKEN>`
 - **Transport:** Streamable HTTP
 - **Works with:** Claude Desktop, Cursor, VS Code, Windsurf, Warp, Gemini CLI
 
-**Example MCP config (Claude Desktop / Cursor):**
+**Claude Desktop / Cursor config:**
 
 ```json
 {
@@ -293,10 +266,55 @@ This actor works as an MCP tool through Apify's hosted MCP server. No custom ser
 }
 ```
 
-AI agents can use this actor to search Reddit for discussions, scrape subreddit posts, extract comment threads, and monitor user activity -- all as a callable MCP tool.
+AI agents can search Reddit for discussions, scrape subreddit posts, pull comment threads, and monitor user activity — all as a callable tool without managing any infrastructure.
+
+---
+
+## Technical details
+
+- Uses `old.reddit.com` JSON endpoints — no API credentials, no OAuth, no browser rendering
+- Rate limited to ~10 requests/minute (7-second interval between requests)
+- Exponential backoff on 429 rate limit responses (30s base, doubles per retry)
+- Proxy rotation on 403 IP blocks
+- Pagination via Reddit's `after` cursor (up to ~1,000 items per listing)
+- Results pushed in batches of 25 for memory efficiency
+- Actor state persisted across Apify platform migrations
+
+---
+
+## Limitations
+
+- Reddit caps unauthenticated listing pagination at roughly 1,000 items per subreddit/user endpoint
+- `"Load more comments"` nodes in deep comment trees are not expanded — only the initially loaded tree is extracted
+- Datacenter proxies will not work — Reddit has blocked nearly all datacenter IP ranges since mid-2025. Residential proxies are required.
+- High-volume runs (1,000+ results) take time due to Reddit's rate limits
+
+---
+
+## FAQ
+
+### Is it legal to scrape Reddit?
+
+Web scraping of publicly available data is generally legal, as established by the *hiQ Labs v. LinkedIn* ruling. This actor only accesses public Reddit content visible to any anonymous browser visitor. It does not bypass login walls, CAPTCHAs, or access private content.
+
+### Why are residential proxies required?
+
+Reddit blocks nearly all datacenter IP ranges. Residential proxies route requests through real ISP connections that Reddit does not filter. Without them, most requests will return 403s.
+
+### How does batch search work?
+
+Set `searchQueriesList` to an array of query strings. The actor runs each query sequentially and merges results into a single dataset, removing duplicate posts (matched by Reddit post ID). This is useful for brand monitoring (track multiple product names in one run), competitive research, or collecting data across related topics.
+
+### Can I use this with the Apify API?
+
+Yes. Call the actor via the Apify REST API and poll for results, or use the Apify Python or JavaScript client libraries. Results are available in JSON, CSV, Excel, and XML formats.
+
+### What happens if a subreddit, user, or post URL doesn't exist?
+
+The scraper logs a warning and skips the invalid target. All remaining valid targets in the same run continue as normal.
 
 ---
 
 ## Feedback
 
-Found a bug or have a feature request? Open an issue on the actor's Issues tab in Apify Console.
+Found a bug or have a feature request? Open an issue on the Issues tab in Apify Console.
