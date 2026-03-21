@@ -8,13 +8,113 @@ Reddit Scraper pulls structured data from Reddit using `old.reddit.com` JSON end
 
 **v1.1.0:** Added batch search (`searchQueriesList`) — run multiple queries in a single job with automatic deduplication by post ID.
 
-## Who uses this
+## 👥 Who Uses This
 
-- **Brand and market researchers** — monitor what people say about your product, competitors, or industry across thousands of threads without manual browsing
-- **NLP and sentiment analysis engineers** — collect topic-specific posts and comments at scale for training classifiers, fine-tuning embeddings, or labeling datasets
-- **AI/LLM training data teams** — harvest diverse, high-quality human-written text from specific communities and topics
-- **Social media analysts and journalists** — track narratives, investigate communities, map opinion shifts over time
-- **Developers and AI agents** — call via Apify API or expose as an MCP tool so agents can query Reddit in real time
+### 🏢 Brand and Market Researchers
+
+You need to know what real people say about your product, competitors, or industry — not curated press releases, but unfiltered community discussion. Reddit is where honest opinions live. This actor lets you monitor multiple brand terms or competitor names in one run, deduplicated and ready for sentiment analysis.
+
+**Typical input:**
+
+```json
+{
+    "mode": "search",
+    "searchQueriesList": ["YourBrand review", "CompetitorA vs CompetitorB", "best CRM 2025"],
+    "searchSort": "top",
+    "timeFilter": "year",
+    "maxResults": 500,
+    "includeComments": true
+}
+```
+
+Run this on a schedule (daily or weekly via Apify schedules) to track brand sentiment shifts over time without touching the Reddit website.
+
+---
+
+### 💻 NLP and ML Engineers
+
+You need topic-specific text at scale — Reddit comments and posts for training classifiers, fine-tuning embeddings, building sentiment models, or labeling datasets. The structured output (author, score, depth, timestamp) gives you signal for quality filtering without post-processing.
+
+**Collect training data from multiple subreddits:**
+
+```json
+{
+    "mode": "subreddit_posts",
+    "subreddits": ["MachineLearning", "LocalLLaMA", "datascience", "learnmachinelearning"],
+    "sort": "top",
+    "timeFilter": "year",
+    "maxResults": 2000,
+    "includeComments": true
+}
+```
+
+Filter by `score` (high-upvote posts = community-validated content) and `depth` (top-level comments = more coherent standalone text). The `userContentType` field on user profile mode lets you pull comment-only output for dialogue dataset construction.
+
+---
+
+### 🛠️ Product Teams and Startups
+
+You want to understand what problems your target market is describing in their own words — not survey responses, but organic complaints, feature requests, and workaround threads. Reddit search across the right subreddits is a fast way to do Jobs-to-Be-Done research before writing a single line of code.
+
+**Discovery research across communities:**
+
+```json
+{
+    "mode": "search",
+    "searchQueriesList": ["wish there was a tool for", "looking for software that", "does anyone know how to automate"],
+    "searchSubreddit": "entrepreneur",
+    "searchSort": "relevance",
+    "maxResults": 200
+}
+```
+
+Use batch search to sweep multiple pain-point queries across a single subreddit or across all of Reddit. Export to CSV for tagging and clustering in a spreadsheet.
+
+---
+
+### 📰 Social Media Analysts and Journalists
+
+You're tracking narratives, investigating communities, or mapping how opinions shift around a topic over time. Reddit's threaded comment structure and upvote system give you signal on consensus and dissent that flat social feeds don't provide.
+
+**Pull full comment trees from key posts:**
+
+```json
+{
+    "mode": "post_comments",
+    "postUrls": [
+        "https://www.reddit.com/r/politics/comments/abc123/some_breaking_story/",
+        "https://www.reddit.com/r/technology/comments/def456/another_post/"
+    ],
+    "maxCommentsPerPost": 1000
+}
+```
+
+Use `user_profile` mode to audit a specific account's post and comment history across subreddits — useful for investigating astroturfing, coordinated behavior, or tracking how a public figure's community engagement evolves.
+
+---
+
+### 🤖 AI/LLM Engineers and Agent Builders
+
+You're building AI pipelines that need real-time access to community knowledge — RAG systems grounded in current Reddit discussions, agents that can search subreddits on demand, or workflows that pull fresh posts into an LLM context window.
+
+**MCP tool config for Claude Desktop / Cursor:**
+
+```json
+{
+    "mcpServers": {
+        "reddit-scraper": {
+            "url": "https://mcp.apify.com?tools=labrat011/reddit-scraper",
+            "headers": {
+                "Authorization": "Bearer <APIFY_TOKEN>"
+            }
+        }
+    }
+}
+```
+
+Once configured, your AI agent can call `reddit-scraper` as a tool to search any subreddit, pull comment threads, or monitor user activity — no infrastructure to manage. Combine with other actors in the healthcare or finance cluster for multi-source research pipelines.
+
+---
 
 ## Features
 
@@ -312,6 +412,18 @@ Yes. Call the actor via the Apify REST API and poll for results, or use the Apif
 ### What happens if a subreddit, user, or post URL doesn't exist?
 
 The scraper logs a warning and skips the invalid target. All remaining valid targets in the same run continue as normal.
+
+---
+
+## 🔗 Related Actors
+
+| Actor | What it does | Pairs well with Reddit Scraper when... |
+|-------|-------------|----------------------------------------|
+| [Academic Paper Scraper](https://apify.com/labrat011/academic-paper-scraper) | Google Scholar, Semantic Scholar, arXiv | You find a paper discussed on Reddit and want the full metadata and abstract |
+| [PubMed Scraper](https://apify.com/labrat011/pubmed-scraper) | 35M+ biomedical abstracts from NCBI | r/science or health subreddit posts reference medical studies you want to retrieve |
+| [Clinical Trials Scraper](https://apify.com/labrat011/clinical-trials-scraper) | ClinicalTrials.gov study data | Reddit health communities discuss ongoing trials you want to track |
+| [LinkedIn Jobs Scraper](https://apify.com/labrat011/linkedin-jobs-scraper) | Job postings and company data | You monitor r/cscareerquestions or industry subreddits and want matching job listings |
+| [NPI Provider Contact Finder](https://apify.com/labrat011/npi-provider-contact-finder) | Healthcare provider directory | Health subreddit discussions lead to provider lookup needs |
 
 ---
 
