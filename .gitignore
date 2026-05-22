@@ -33,7 +33,6 @@ Thumbs.db
 
 # GSD planning artifacts
 .planning/
-.arc/
 
 # Deployment strategy (private — stored in _apify_intel/deployment/ only)
 DEPLOYMENT_INFO.md
