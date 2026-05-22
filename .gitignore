@@ -31,8 +31,6 @@ Thumbs.db
 .env
 .env.local
 
-# GSD planning artifacts
-.planning/
 
 # Deployment strategy (private — stored in _apify_intel/deployment/ only)
 DEPLOYMENT_INFO.md
