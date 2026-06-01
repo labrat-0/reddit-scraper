@@ -17,7 +17,7 @@ REQUEST_INTERVAL = 7.0
 
 # Retry settings
 MAX_RETRIES = 3
-RETRY_BASE_DELAY = 30.0  # seconds
+RETRY_BASE_DELAY = 5.0  # seconds (was 30 — caused timeout cascade on 429)
 
 # User agents to rotate through (realistic browser UAs)
 USER_AGENTS = [
@@ -84,7 +84,24 @@ async def fetch_json(
             )
 
             if response.status_code == 200:
-                return response.json()
+                try:
+                    data = response.json()
+                except Exception:
+                    logger.warning(f"Non-JSON 200 response from {url}")
+                    return None
+                # Reddit sometimes sends 200 with {"error": 429} body instead of proper status
+                if isinstance(data, dict) and "error" in data:
+                    err_code = data.get("error")
+                    logger.warning(
+                        f"Reddit 200+error body (code={err_code}) on {url}. "
+                        f"Attempt {attempt + 1}/{MAX_RETRIES}"
+                    )
+                    if err_code == 429:
+                        delay = RETRY_BASE_DELAY * (2 ** attempt)
+                        await asyncio.sleep(delay)
+                        continue
+                    return None
+                return data
 
             if response.status_code == 429:
                 delay = RETRY_BASE_DELAY * (2 ** attempt)

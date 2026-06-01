@@ -217,12 +217,18 @@ class RedditScraper:
             )
 
             if not data or not isinstance(data, dict):
+                logger.warning(f"Unexpected response type from {url}: {type(data)}")
                 break
 
             listing = data.get("data", {})
             children = listing.get("children", [])
 
             if not children:
+                if not listing:
+                    logger.warning(
+                        f"Unexpected response structure from {url}: "
+                        f"top-level keys={list(data.keys())[:8]}"
+                    )
                 break
 
             for child in children:
