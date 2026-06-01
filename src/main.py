@@ -48,9 +48,13 @@ async def main() -> None:
             f"max_results={max_results}"
         )
 
-        # 3. Set up proxy
+        # 3. Set up proxy — default to residential; Reddit blocks datacenter IPs
+        proxy_input = raw_input.get("proxyConfiguration") or {
+            "useApifyProxy": True,
+            "apifyProxyGroups": ["RESIDENTIAL"],
+        }
         proxy_config = await Actor.create_proxy_configuration(
-            actor_proxy_input=raw_input.get("proxyConfiguration")
+            actor_proxy_input=proxy_input
         )
 
         # 4. Resume state (survives migrations)
@@ -58,16 +62,11 @@ async def main() -> None:
             default_value={"scraped": 0, "failed": 0}
         )
 
-        # 5. Set up HTTP client with proxy
-        proxy_url = None
-        if proxy_config:
-            proxy_url = await proxy_config.new_url()
-
         await Actor.set_status_message("Connecting to Reddit...")
 
-        async with httpx.AsyncClient(proxy=proxy_url) as client:
+        async with httpx.AsyncClient() as client:
             rate_limiter = RateLimiter()
-            scraper = RedditScraper(client, rate_limiter, config)
+            scraper = RedditScraper(client, rate_limiter, config, proxy_config)
 
             count = state["scraped"]
             batch: list[dict] = []

@@ -66,6 +66,7 @@ async def fetch_json(
     url: str,
     rate_limiter: RateLimiter,
     params: dict[str, Any] | None = None,
+    proxy_config: Any | None = None,
 ) -> dict[str, Any] | list[Any] | None:
     """Fetch JSON from a URL with rate limiting and retry logic.
 
@@ -74,14 +75,23 @@ async def fetch_json(
     for attempt in range(MAX_RETRIES):
         await rate_limiter.wait()
 
+        # Rotate proxy IP each attempt — get a fresh URL per try
+        proxy_url = None
+        if proxy_config:
+            proxy_url = await proxy_config.new_url()
+
         try:
-            response = await client.get(
-                url,
-                params=params,
-                headers=_get_headers(),
-                timeout=30.0,
+            # Create a per-attempt client so proxy URL rotates each retry
+            async with httpx.AsyncClient(
+                proxy=proxy_url,
                 follow_redirects=True,
-            )
+            ) as req_client:
+                response = await req_client.get(
+                    url,
+                    params=params,
+                    headers=_get_headers(),
+                    timeout=30.0,
+                )
 
             if response.status_code == 200:
                 try:

@@ -20,17 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class RedditScraper:
-    """Scrapes Reddit using old.reddit.com JSON endpoints."""
+    """Scrapes Reddit using www.reddit.com JSON endpoints."""
 
     def __init__(
         self,
         client: httpx.AsyncClient,
         rate_limiter: RateLimiter,
         config: ScraperInput,
+        proxy_config: Any = None,
     ) -> None:
         self.client = client
         self.rate_limiter = rate_limiter
         self.config = config
+        self.proxy_config = proxy_config
 
     async def scrape(self) -> AsyncIterator[dict[str, Any]]:
         """Main entry point -- dispatches to the correct mode."""
@@ -161,7 +163,7 @@ class RedditScraper:
             url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}.json"
             params: dict[str, Any] = {"limit": 500, "raw_json": 1}
 
-            data = await fetch_json(self.client, url, self.rate_limiter, params)
+            data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config)
             if not data or not isinstance(data, list) or len(data) < 2:
                 logger.warning(f"No data returned for post {post_id}")
                 continue
@@ -213,7 +215,7 @@ class RedditScraper:
                 current_params["after"] = after
 
             data = await fetch_json(
-                self.client, url, self.rate_limiter, current_params
+                self.client, url, self.rate_limiter, current_params, self.proxy_config
             )
 
             if not data or not isinstance(data, dict):
@@ -259,7 +261,7 @@ class RedditScraper:
         url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}.json"
         params: dict[str, Any] = {"limit": 500, "raw_json": 1}
 
-        data = await fetch_json(self.client, url, self.rate_limiter, params)
+        data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config)
         if not data or not isinstance(data, list) or len(data) < 2:
             return
 
