@@ -10,7 +10,7 @@ from apify import Actor
 
 from .models import ScraperInput
 from .scraper import RedditScraper
-from .utils import RateLimiter
+from .utils import RateLimiter, get_oauth_token
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,30 @@ async def main() -> None:
             f"max_results={max_results}"
         )
 
-        # 3. Set up proxy — default to residential; Reddit blocks datacenter IPs
+        # 3. Reddit OAuth credentials — env vars set by actor owner, optional user override
+        client_id = (
+            raw_input.get("redditClientId")
+            or os.environ.get("REDDIT_CLIENT_ID", "")
+        )
+        client_secret = (
+            raw_input.get("redditClientSecret")
+            or os.environ.get("REDDIT_CLIENT_SECRET", "")
+        )
+        oauth_token: str | None = None
+        if client_id and client_secret:
+            oauth_token = await get_oauth_token(client_id, client_secret)
+            if not oauth_token:
+                Actor.log.warning(
+                    "Reddit OAuth failed — falling back to unauthenticated requests. "
+                    "Check REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET env vars."
+                )
+        else:
+            Actor.log.warning(
+                "No Reddit API credentials found. Requests may be blocked by Reddit. "
+                "Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET actor env vars."
+            )
+
+        # 4. Set up proxy — default to residential; Reddit blocks datacenter IPs
         proxy_input = raw_input.get("proxyConfiguration") or {
             "useApifyProxy": True,
             "apifyProxyGroups": ["RESIDENTIAL"],
@@ -57,7 +80,7 @@ async def main() -> None:
             actor_proxy_input=proxy_input
         )
 
-        # 4. Resume state (survives migrations)
+        # 5. Resume state (survives migrations)
         state = await Actor.use_state(
             default_value={"scraped": 0, "failed": 0}
         )
@@ -66,7 +89,7 @@ async def main() -> None:
 
         async with httpx.AsyncClient() as client:
             rate_limiter = RateLimiter()
-            scraper = RedditScraper(client, rate_limiter, config, proxy_config)
+            scraper = RedditScraper(client, rate_limiter, config, proxy_config, oauth_token)
 
             count = state["scraped"]
             batch: list[dict] = []

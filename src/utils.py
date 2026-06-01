@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import random
 from typing import Any
@@ -11,15 +12,25 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Reddit rate limit: ~10 requests/minute unauthenticated = 1 every 6 seconds.
-# We use 7 seconds to add a safety margin.
-REQUEST_INTERVAL = 7.0
+# Authenticated requests go to oauth.reddit.com (bypasses Fastly CDN blocking).
+# Unauthenticated fallback uses www.reddit.com.
+OAUTH_BASE_URL = "https://oauth.reddit.com"
+BASE_URL = "https://www.reddit.com"
+TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+
+# Reddit OAuth rate limit: 100 req/min = 1 every 0.6s.
+# Unauthenticated: ~10 req/min = 1 every 6s.
+REQUEST_INTERVAL = 0.7  # used when authenticated; scraper falls back to 7s without token
 
 # Retry settings
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 5.0  # seconds (was 30 — caused timeout cascade on 429)
 
-# User agents to rotate through
+# Reddit requires this exact User-Agent format for OAuth API access.
+# Platform:AppID:Version (by /u/username)
+OAUTH_USER_AGENT = "python:apify-reddit-scraper:1.2.0 (by /u/labrat011)"
+
+# Browser UAs for unauthenticated fallback
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -28,7 +39,29 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0",
 ]
 
-BASE_URL = "https://www.reddit.com"
+
+async def get_oauth_token(client_id: str, client_secret: str) -> str | None:
+    """Fetch a Reddit app-only OAuth2 access token (valid 1 hour)."""
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                TOKEN_URL,
+                headers={
+                    "Authorization": f"Basic {credentials}",
+                    "User-Agent": OAUTH_USER_AGENT,
+                },
+                data={"grant_type": "client_credentials"},
+                timeout=30.0,
+            )
+            if response.status_code == 200:
+                token = response.json().get("access_token")
+                logger.info("Reddit OAuth token acquired")
+                return token
+            logger.error(f"OAuth token request failed: {response.status_code} {response.text[:200]}")
+        except Exception as e:
+            logger.error(f"OAuth token request error: {e}")
+    return None
 
 
 class RateLimiter:
@@ -51,8 +84,14 @@ class RateLimiter:
             self._last_request = asyncio.get_event_loop().time()
 
 
-def _get_headers() -> dict[str, str]:
-    """Return headers with a random User-Agent."""
+def _get_headers(oauth_token: str | None = None) -> dict[str, str]:
+    """Return request headers. Uses OAuth headers when a token is available."""
+    if oauth_token:
+        return {
+            "Authorization": f"Bearer {oauth_token}",
+            "User-Agent": OAUTH_USER_AGENT,
+            "Accept": "application/json",
+        }
     return {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -68,6 +107,7 @@ async def fetch_json(
     rate_limiter: RateLimiter,
     params: dict[str, Any] | None = None,
     proxy_config: Any | None = None,
+    oauth_token: str | None = None,
 ) -> dict[str, Any] | list[Any] | None:
     """Fetch JSON from a URL with rate limiting and retry logic.
 
@@ -76,9 +116,10 @@ async def fetch_json(
     for attempt in range(MAX_RETRIES):
         await rate_limiter.wait()
 
-        # Rotate proxy IP each attempt — get a fresh URL per try
+        # OAuth requests go direct to oauth.reddit.com — no proxy needed.
+        # Unauthenticated fallback rotates residential proxy IPs to avoid blocks.
         proxy_url = None
-        if proxy_config:
+        if proxy_config and not oauth_token:
             proxy_url = await proxy_config.new_url()
 
         try:
@@ -90,7 +131,7 @@ async def fetch_json(
                 response = await req_client.get(
                     url,
                     params=params,
-                    headers=_get_headers(),
+                    headers=_get_headers(oauth_token),
                     timeout=30.0,
                 )
 

@@ -129,16 +129,30 @@
             "default": false
         },
         "proxyConfiguration": {
-            "sectionCaption": "🔒 Proxy Configuration",
-            "sectionDescription": "Reddit blocks datacenter IPs. Residential proxies are required for reliable scraping.",
+            "sectionCaption": "🔒 Proxy & API Configuration",
+            "sectionDescription": "Reddit's official API (oauth.reddit.com) bypasses CDN blocking and is faster. Create a free app at reddit.com/prefs/apps to get credentials. Residential proxies are used as fallback.",
             "title": "🔒 Proxy Configuration",
             "type": "object",
-            "description": "Proxy settings. Residential proxies are strongly recommended — Reddit blocks most datacenter IPs.",
+            "description": "Proxy settings. Used as fallback when Reddit OAuth credentials are not set.",
             "editor": "proxy",
             "prefill": {
                 "useApifyProxy": true,
                 "apifyProxyGroups": ["RESIDENTIAL"]
             }
+        },
+        "redditClientId": {
+            "title": "Reddit App Client ID (optional)",
+            "type": "string",
+            "description": "Reddit API app client ID. Create a free 'script' app at reddit.com/prefs/apps. Enables the official OAuth API which is more reliable than scraping. Leave blank if set as actor env var REDDIT_CLIENT_ID.",
+            "editor": "textfield",
+            "isSecret": false
+        },
+        "redditClientSecret": {
+            "title": "Reddit App Client Secret (optional)",
+            "type": "string",
+            "description": "Reddit API app client secret. Paired with the Client ID above. Leave blank if set as actor env var REDDIT_CLIENT_SECRET.",
+            "editor": "textfield",
+            "isSecret": true
         }
     },
     "required": ["mode"]

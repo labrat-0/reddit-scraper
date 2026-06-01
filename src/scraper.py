@@ -14,13 +14,13 @@ from .models import (
     format_post,
     format_user_item,
 )
-from .utils import BASE_URL, RateLimiter, fetch_json, parse_post_url
+from .utils import BASE_URL, OAUTH_BASE_URL, RateLimiter, fetch_json, parse_post_url
 
 logger = logging.getLogger(__name__)
 
 
 class RedditScraper:
-    """Scrapes Reddit using www.reddit.com JSON endpoints."""
+    """Scrapes Reddit via OAuth API (oauth.reddit.com) or www.reddit.com fallback."""
 
     def __init__(
         self,
@@ -28,11 +28,14 @@ class RedditScraper:
         rate_limiter: RateLimiter,
         config: ScraperInput,
         proxy_config: Any = None,
+        oauth_token: str | None = None,
     ) -> None:
         self.client = client
         self.rate_limiter = rate_limiter
         self.config = config
         self.proxy_config = proxy_config
+        self.oauth_token = oauth_token
+        self.base_url = OAUTH_BASE_URL if oauth_token else BASE_URL
 
     async def scrape(self) -> AsyncIterator[dict[str, Any]]:
         """Main entry point -- dispatches to the correct mode."""
@@ -58,7 +61,7 @@ class RedditScraper:
         for subreddit in self.config.subreddits:
             logger.info(f"Scraping r/{subreddit} ({self.config.sort.value})")
 
-            url = f"{BASE_URL}/r/{subreddit}/{self.config.sort.value}.json"
+            url = f"{self.base_url}/r/{subreddit}/{self.config.sort.value}.json"
             params: dict[str, Any] = {"limit": 25, "raw_json": 1}
 
             if self.config.sort.value == "top":
@@ -87,7 +90,7 @@ class RedditScraper:
             logger.info(f"Searching Reddit for: '{query}'")
 
             if self.config.search_subreddit:
-                url = f"{BASE_URL}/r/{self.config.search_subreddit}/search.json"
+                url = f"{self.base_url}/r/{self.config.search_subreddit}/search.json"
                 params: dict[str, Any] = {
                     "q": query,
                     "restrict_sr": "on",
@@ -96,7 +99,7 @@ class RedditScraper:
                     "raw_json": 1,
                 }
             else:
-                url = f"{BASE_URL}/search.json"
+                url = f"{self.base_url}/search.json"
                 params = {
                     "q": query,
                     "sort": self.config.search_sort.value,
@@ -133,11 +136,11 @@ class RedditScraper:
             logger.info(f"Scraping u/{username} ({content_type})")
 
             if content_type == "overview":
-                url = f"{BASE_URL}/user/{username}/.json"
+                url = f"{self.base_url}/user/{username}/.json"
             elif content_type == "submitted":
-                url = f"{BASE_URL}/user/{username}/submitted.json"
+                url = f"{self.base_url}/user/{username}/submitted.json"
             else:  # comments
-                url = f"{BASE_URL}/user/{username}/comments.json"
+                url = f"{self.base_url}/user/{username}/comments.json"
 
             params: dict[str, Any] = {"limit": 25, "raw_json": 1}
 
@@ -160,10 +163,10 @@ class RedditScraper:
             subreddit, post_id = parsed
             logger.info(f"Scraping comments from r/{subreddit} post {post_id}")
 
-            url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}.json"
+            url = f"{self.base_url}/r/{subreddit}/comments/{post_id}.json"
             params: dict[str, Any] = {"limit": 500, "raw_json": 1}
 
-            data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config)
+            data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config, self.oauth_token)
             if not data or not isinstance(data, list) or len(data) < 2:
                 logger.warning(f"No data returned for post {post_id}")
                 continue
@@ -215,7 +218,7 @@ class RedditScraper:
                 current_params["after"] = after
 
             data = await fetch_json(
-                self.client, url, self.rate_limiter, current_params, self.proxy_config
+                self.client, url, self.rate_limiter, current_params, self.proxy_config, self.oauth_token
             )
 
             if not data or not isinstance(data, dict):
@@ -258,10 +261,10 @@ class RedditScraper:
         self, subreddit: str, post_id: str
     ) -> AsyncIterator[dict[str, Any]]:
         """Fetch comments for a single post."""
-        url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}.json"
+        url = f"{self.base_url}/r/{subreddit}/comments/{post_id}.json"
         params: dict[str, Any] = {"limit": 500, "raw_json": 1}
 
-        data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config)
+        data = await fetch_json(self.client, url, self.rate_limiter, params, self.proxy_config, self.oauth_token)
         if not data or not isinstance(data, list) or len(data) < 2:
             return
 
