@@ -59,7 +59,7 @@ class RedditScraper:
             logger.info(f"Scraping r/{subreddit} ({self.config.sort.value})")
 
             url = f"{BASE_URL}/r/{subreddit}/{self.config.sort.value}.json"
-            params: dict[str, Any] = {"limit": 100, "raw_json": 1}
+            params: dict[str, Any] = {"limit": 25, "raw_json": 1}
 
             if self.config.sort.value == "top":
                 params["t"] = self.config.time_filter.value
@@ -92,7 +92,7 @@ class RedditScraper:
                     "q": query,
                     "restrict_sr": "on",
                     "sort": self.config.search_sort.value,
-                    "limit": 100,
+                    "limit": 25,
                     "raw_json": 1,
                 }
             else:
@@ -100,7 +100,7 @@ class RedditScraper:
                 params = {
                     "q": query,
                     "sort": self.config.search_sort.value,
-                    "limit": 100,
+                    "limit": 25,
                     "raw_json": 1,
                 }
 
@@ -139,7 +139,7 @@ class RedditScraper:
             else:  # comments
                 url = f"{BASE_URL}/user/{username}/comments.json"
 
-            params: dict[str, Any] = {"limit": 100, "raw_json": 1}
+            params: dict[str, Any] = {"limit": 25, "raw_json": 1}
 
             async for item in self._paginate_listing(url, params, is_user=True):
                 item_data = dict(item)
@@ -250,7 +250,7 @@ class RedditScraper:
 
             page += 1
             # Reddit caps pagination at ~4 pages of 100 (roughly 400 items)
-            if page >= 10:
+            if page >= 40:
                 logger.info("Reached pagination limit")
                 break
 
