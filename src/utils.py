@@ -9,11 +9,12 @@ import random
 from typing import Any
 
 import httpx
+from curl_cffi.requests import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 # Authenticated requests go to oauth.reddit.com (bypasses Fastly CDN blocking).
-# Unauthenticated fallback uses www.reddit.com.
+# Unauthenticated fallback uses www.reddit.com with Chrome TLS impersonation.
 OAUTH_BASE_URL = "https://oauth.reddit.com"
 BASE_URL = "https://www.reddit.com"
 TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
@@ -24,19 +25,16 @@ REQUEST_INTERVAL = 0.7  # used when authenticated; scraper falls back to 7s with
 
 # Retry settings
 MAX_RETRIES = 3
-RETRY_BASE_DELAY = 5.0  # seconds (was 30 — caused timeout cascade on 429)
+RETRY_BASE_DELAY = 5.0  # seconds
 
 # Reddit requires this exact User-Agent format for OAuth API access.
-# Platform:AppID:Version (by /u/username)
 OAUTH_USER_AGENT = "python:apify-reddit-scraper:1.2.0 (by /u/labrat011)"
 
-# Browser UAs for unauthenticated fallback
+# Browser UAs for unauthenticated requests (paired with Chrome TLS impersonation)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0",
 ]
 
 
@@ -85,7 +83,7 @@ class RateLimiter:
 
 
 def _get_headers(oauth_token: str | None = None) -> dict[str, str]:
-    """Return request headers. Uses OAuth headers when a token is available."""
+    """Return request headers. OAuth token takes precedence over browser UA."""
     if oauth_token:
         return {
             "Authorization": f"Bearer {oauth_token}",
@@ -94,15 +92,12 @@ def _get_headers(oauth_token: str | None = None) -> dict[str, str]:
         }
     return {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
     }
 
 
 async def fetch_json(
-    client: httpx.AsyncClient,
+    client: Any,
     url: str,
     rate_limiter: RateLimiter,
     params: dict[str, Any] | None = None,
@@ -111,28 +106,32 @@ async def fetch_json(
 ) -> dict[str, Any] | list[Any] | None:
     """Fetch JSON from a URL with rate limiting and retry logic.
 
+    Uses curl_cffi to impersonate Chrome's TLS fingerprint, bypassing
+    Reddit's JA3/TLS-based bot detection. Falls back gracefully.
+
     Returns the parsed JSON data, or None if all retries fail.
     """
     for attempt in range(MAX_RETRIES):
         await rate_limiter.wait()
 
-        # OAuth requests go direct to oauth.reddit.com — no proxy needed.
-        # Unauthenticated fallback rotates residential proxy IPs to avoid blocks.
-        proxy_url = None
+        # OAuth goes direct — no proxy cost or fingerprint concern.
+        # Unauthenticated mode rotates residential IPs as extra layer.
+        proxy_url: str | None = None
         if proxy_config and not oauth_token:
             proxy_url = await proxy_config.new_url()
 
+        proxies = {"https": proxy_url, "http": proxy_url} if proxy_url else None
+
         try:
-            # Create a per-attempt client so proxy URL rotates each retry
-            async with httpx.AsyncClient(
-                proxy=proxy_url,
-                follow_redirects=True,
-            ) as req_client:
-                response = await req_client.get(
+            async with AsyncSession() as session:
+                response = await session.get(
                     url,
                     params=params,
                     headers=_get_headers(oauth_token),
-                    timeout=30.0,
+                    timeout=30,
+                    impersonate="chrome124",
+                    proxies=proxies,
+                    allow_redirects=True,
                 )
 
             if response.status_code == 200:
@@ -141,7 +140,7 @@ async def fetch_json(
                 except Exception:
                     logger.warning(f"Non-JSON 200 response from {url}")
                     return None
-                # Reddit sometimes sends 200 with {"error": 429} body instead of proper status
+                # Reddit sometimes sends 200 with {"error": 429} body
                 if isinstance(data, dict) and "error" in data:
                     err_code = data.get("error")
                     logger.warning(
@@ -166,10 +165,8 @@ async def fetch_json(
 
             if response.status_code == 403:
                 logger.warning(
-                    f"Forbidden (403) on {url}. "
-                    f"IP may be blocked. Attempt {attempt + 1}/{MAX_RETRIES}"
+                    f"Forbidden (403) on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
                 )
-                # Short delay then retry -- proxy rotation should give a new IP
                 await asyncio.sleep(5.0)
                 continue
 
@@ -186,24 +183,13 @@ async def fetch_json(
                 await asyncio.sleep(delay)
                 continue
 
-            logger.warning(
-                f"Unexpected status {response.status_code} on {url}"
-            )
+            logger.warning(f"Unexpected status {response.status_code} on {url}")
             return None
 
-        except httpx.TimeoutException:
+        except Exception as e:
             delay = 10.0 * (attempt + 1)
             logger.warning(
-                f"Timeout on {url}. "
-                f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
-            )
-            await asyncio.sleep(delay)
-            continue
-
-        except httpx.HTTPError as e:
-            delay = 10.0 * (attempt + 1)
-            logger.warning(
-                f"HTTP error on {url}: {e}. "
+                f"Request error on {url}: {e}. "
                 f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
             )
             await asyncio.sleep(delay)
@@ -224,7 +210,6 @@ def parse_post_url(url: str) -> tuple[str, str] | None:
 
     Returns None if the URL can't be parsed.
     """
-    # Strip protocol and domain
     path = url.strip()
     for prefix in [
         "https://www.reddit.com",
@@ -238,7 +223,6 @@ def parse_post_url(url: str) -> tuple[str, str] | None:
             path = path[len(prefix):]
             break
 
-    # Parse path: /r/{subreddit}/comments/{id}/...
     parts = [p for p in path.split("/") if p]
 
     if len(parts) >= 4 and parts[0] == "r" and parts[2] == "comments":
