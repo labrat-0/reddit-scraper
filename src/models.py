@@ -190,6 +190,18 @@ def format_post_from_thing(thing: Any) -> dict[str, Any]:
     flair_el = thing.select_one(".linkflairlabel")
     flair = flair_el.get_text(strip=True) if flair_el else ""
 
+    # Thumbnail: real media posts have an <img> in the thumbnail anchor;
+    # self/text posts have a placeholder class instead.
+    thumb_img = thing.select_one("a.thumbnail img")
+    thumbnail = ""
+    if thumb_img and thumb_img.get("src"):
+        src = thumb_img["src"]
+        thumbnail = f"https:{src}" if src.startswith("//") else src
+
+    is_video = domain in ("v.redd.it", "youtube.com", "youtu.be") or (
+        attrs.get("data-url", "").endswith((".mp4", ".gifv"))
+    )
+
     return {
         "type": "post",
         "id": post_id,
@@ -206,7 +218,10 @@ def format_post_from_thing(thing: Any) -> dict[str, Any]:
         "isSpoiler": attrs.get("data-spoiler") == "true",
         "isPinned": "stickied" in classes,
         "flair": flair,
+        "awards": _int(attrs.get("data-gildings")),
         "domain": domain,
+        "isVideo": is_video,
+        "thumbnail": thumbnail,
         "isPromoted": attrs.get("data-promoted") == "true",
     }
 
@@ -214,9 +229,17 @@ def format_post_from_thing(thing: Any) -> dict[str, Any]:
 def format_comment_from_thing(thing: Any, depth: int = 0) -> dict[str, Any]:
     """Format a comment from an old.reddit `<div class="thing">` element."""
     attrs = thing.attrs
+    classes = attrs.get("class", [])
     fullname = attrs.get("data-fullname", "")
     comment_id = fullname.replace("t1_", "")
     permalink = attrs.get("data-permalink", "")
+
+    # Parent post id is the 4th path segment of the permalink:
+    # /r/{sub}/comments/{postId}/{slug}/{commentId}
+    post_id = ""
+    parts = [p for p in permalink.split("/") if p]
+    if len(parts) >= 4 and parts[2] == "comments":
+        post_id = parts[3]
 
     # Comment body lives in the direct entry, not nested child comments
     body_el = thing.select_one(".entry .usertext-body")
@@ -225,13 +248,21 @@ def format_comment_from_thing(thing: Any, depth: int = 0) -> dict[str, Any]:
     score_el = thing.select_one(".score.unvoted")
     score = _int(score_el.get("title")) if score_el else 0
 
+    # Own timestamp lives in the tagline; child comments have their own times
+    time_el = thing.select_one(".tagline time")
+    created = time_el.get("datetime", "") if time_el else ""
+
     return {
         "type": "comment",
         "id": comment_id,
+        "postId": post_id,
         "subreddit": attrs.get("data-subreddit", ""),
         "author": attrs.get("data-author", "[deleted]"),
         "body": body,
         "score": score,
+        "created": created,
         "depth": depth,
+        "isSubmitter": "submitter" in classes,
+        "awards": _int(attrs.get("data-gildings")),
         "url": f"https://www.reddit.com{permalink}",
     }

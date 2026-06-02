@@ -20,8 +20,11 @@ logger = logging.getLogger(__name__)
 # shell with no data in the initial HTML, and the .json API now returns 403.
 BASE_URL = "https://old.reddit.com"
 
-# old.reddit HTML tolerates a few requests/sec. Keep a small margin.
-REQUEST_INTERVAL = 2.0
+# Each request rotates to a fresh residential IP, and Reddit rate-limits
+# per IP — so a short global interval is safe. Jitter avoids a robotic
+# fixed cadence. ~0.6s base + up to 0.4s jitter ≈ 1 req/sec average.
+REQUEST_INTERVAL = 0.6
+REQUEST_JITTER = 0.4
 
 # Retry settings
 MAX_RETRIES = 3
@@ -44,12 +47,13 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def wait(self) -> None:
-        """Wait until it's safe to make another request."""
+        """Wait until it's safe to make another request, with jitter."""
         async with self._lock:
             now = asyncio.get_event_loop().time()
             elapsed = now - self._last_request
-            if elapsed < self._interval:
-                wait_time = self._interval - elapsed
+            target = self._interval + random.uniform(0, REQUEST_JITTER)
+            if elapsed < target:
+                wait_time = target - elapsed
                 logger.debug(f"Rate limiter: waiting {wait_time:.1f}s")
                 await asyncio.sleep(wait_time)
             self._last_request = asyncio.get_event_loop().time()

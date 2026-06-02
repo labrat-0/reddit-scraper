@@ -1,10 +1,12 @@
 # Reddit Scraper
 
-Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no login, no browser required. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
+Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
 
 ## What does it do?
 
-Reddit Scraper pulls structured data from Reddit using `old.reddit.com` JSON endpoints — no OAuth, no Reddit API credentials, no headless browser. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
+Reddit Scraper pulls structured data from `old.reddit.com` — no OAuth, no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
+
+**v1.2.0:** Reddit shut down its public `.json` API (returns 403 since May 2026). This actor now parses Reddit's server-rendered HTML instead, so it keeps working where `.json`-based scrapers broke. Output stays the same. Also added a fail-fast health check and faster request pacing.
 
 **v1.1.0:** Added batch search (`searchQueriesList`) — run multiple queries in a single job with automatic deduplication by post ID.
 
@@ -125,9 +127,10 @@ Once configured, your AI agent can call `reddit-scraper` as a tool to search any
 - **Full comment trees:** recursive extraction with depth tracking
 - **Search scope:** across all of Reddit or restricted to a single subreddit
 - **User profiles:** posts only, comments only, or both
-- **Pagination:** automatic via Reddit's `after` cursor
-- **Rate limiting:** 7s between requests to stay under Reddit's unauthenticated limits
-- **Retry logic:** exponential backoff on 429, proxy rotation on 403
+- **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
+- **Browser-grade requests:** Chrome TLS impersonation (`curl_cffi`) + rotating residential IPs to avoid blocks
+- **Retry logic:** exponential backoff on 429, IP rotation on 403
+- **Fail-fast health check:** a run that scrapes 0 results fails loudly instead of silently billing compute
 - **State persistence:** survives Apify actor migrations mid-run
 
 ---
@@ -270,17 +273,17 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 | `url` | string | Reddit permalink |
 | `externalUrl` | string | Linked URL (for link posts) |
 | `score` | integer | Net upvotes |
-| `upvoteRatio` | float | Upvote percentage (0.0–1.0) |
 | `numComments` | integer | Total comment count |
 | `created` | string | ISO 8601 UTC timestamp |
 | `isNSFW` | boolean | NSFW flag |
 | `isSpoiler` | boolean | Spoiler flag |
 | `isPinned` | boolean | Stickied/pinned flag |
 | `flair` | string | Post flair text |
-| `awards` | integer | Total awards received |
-| `domain` | string | Link domain |
+| `awards` | integer | Award (gilding) count |
+| `domain` | string | Link domain (e.g. `self.python`) |
 | `isVideo` | boolean | Video post flag |
-| `thumbnail` | string | Thumbnail URL |
+| `thumbnail` | string | Thumbnail URL (empty for self/text posts) |
+| `isPromoted` | boolean | Whether the post is a promoted ad |
 
 ### Comment fields
 
@@ -294,10 +297,9 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 | `body` | string | Comment text |
 | `score` | integer | Net upvotes |
 | `created` | string | ISO 8601 UTC timestamp |
-| `parentId` | string | Parent comment or post ID |
 | `depth` | integer | Nesting depth (0 = top-level) |
 | `isSubmitter` | boolean | Whether author is the post's OP |
-| `awards` | integer | Total awards received |
+| `awards` | integer | Award (gilding) count |
 | `url` | string | Reddit permalink |
 
 ### Example output
@@ -313,7 +315,6 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
     "url": "https://www.reddit.com/r/Python/comments/1r19hu1/...",
     "externalUrl": "",
     "score": 1842,
-    "upvoteRatio": 0.97,
     "numComments": 312,
     "created": "2025-03-01T09:14:22+00:00",
     "isNSFW": false,
@@ -323,7 +324,8 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
     "awards": 5,
     "domain": "self.Python",
     "isVideo": false,
-    "thumbnail": "self"
+    "thumbnail": "",
+    "isPromoted": false
 }
 ```
 
@@ -338,7 +340,7 @@ This actor uses **pay-per-event (PPE) pricing** — you pay only for results you
 - **Free tier: 25 results per run** — no subscription required
 - **Paid tier: up to 10,000 results per run**
 
-Reddit's rate limits mean roughly 8–10 requests per minute. A 100-post subreddit run takes 1–2 minutes. Enabling `includeComments` multiplies run time by the average number of comments per post.
+Each listing page returns ~25 posts, and requests are paced at roughly 1 per second over rotating residential IPs. A 100-post subreddit run takes well under a minute. Enabling `includeComments` adds one request per post.
 
 ---
 
@@ -372,22 +374,23 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 
 ## Technical details
 
-- Uses `old.reddit.com` JSON endpoints — no API credentials, no OAuth, no browser rendering
-- Rate limited to ~10 requests/minute (7-second interval between requests)
-- Exponential backoff on 429 rate limit responses (30s base, doubles per retry)
-- Proxy rotation on 403 IP blocks
-- Pagination via Reddit's `after` cursor (up to ~1,000 items per listing)
+- Parses `old.reddit.com` server-rendered HTML — no API credentials, no OAuth. (Reddit's `.json` API now returns 403; this actor does not depend on it.)
+- Requests use Chrome TLS impersonation via `curl_cffi` to pass Reddit's bot fingerprinting
+- Paced at ~1 request/second with jitter over rotating residential IPs
+- Exponential backoff on 429 (5s base, doubles per retry); IP rotation on 403
+- Pagination by following the listing's next-page link (up to ~1,000 items per listing)
 - Results pushed in batches of 25 for memory efficiency
+- Fail-fast health check: a run that yields 0 results fails with a clear message
 - Actor state persisted across Apify platform migrations
 
 ---
 
 ## Limitations
 
-- Reddit caps unauthenticated listing pagination at roughly 1,000 items per subreddit/user endpoint
-- `"Load more comments"` nodes in deep comment trees are not expanded — only the initially loaded tree is extracted
-- Datacenter proxies will not work — Reddit has blocked nearly all datacenter IP ranges since mid-2025. Residential proxies are required.
-- High-volume runs (1,000+ results) take time due to Reddit's rate limits
+- Reddit caps listing pagination at roughly 1,000 items per subreddit/user endpoint
+- `"Load more comments"` nodes in deep comment trees are not expanded — only the initially loaded tree (up to 500 comments/post) is extracted
+- Datacenter proxies will not work — Reddit has blocked nearly all datacenter IP ranges. Residential proxies are required.
+- `upvoteRatio` is not available from Reddit's HTML and is therefore not included in output
 
 ---
 

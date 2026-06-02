@@ -99,7 +99,22 @@ async def main() -> None:
             if batch:
                 await Actor.push_data(batch)
 
-        # 6. Final status message
+        # 6. Reliability canary — fail loud on 0 results.
+        # A successful run that scraped nothing almost always means Reddit
+        # changed something (as happened May 2026 when the .json API died).
+        # Failing fast surfaces it in run stats instead of silently billing
+        # compute for empty output.
+        if count == 0:
+            await Actor.fail(
+                status_message=(
+                    "Scraped 0 results. Either the targets are empty/invalid, "
+                    "or Reddit changed its HTML and the scraper needs updating. "
+                    "Check the logs for warnings."
+                )
+            )
+            return
+
+        # 7. Final status message
         msg = f"Done. Scraped {count} items."
         if state["failed"] > 0:
             msg += f" {state['failed']} errors encountered."

@@ -65,12 +65,6 @@
                 "nullable": true,
                 "example": 1542
             },
-            "upvoteRatio": {
-                "type": "number",
-                "description": "Ratio of upvotes to total votes as a decimal (posts only)",
-                "nullable": true,
-                "example": 0.95
-            },
             "numComments": {
                 "type": "number",
                 "description": "Total number of comments on the post (posts only)",
@@ -127,21 +121,21 @@
             },
             "thumbnail": {
                 "type": "string",
-                "description": "URL of the post thumbnail image (posts only)",
+                "description": "URL of the post thumbnail image, empty for self/text posts (posts only)",
                 "nullable": true,
-                "example": "https://example.com/thumb.jpg"
+                "example": "https://b.thumbs.redditmedia.com/abc.jpg"
+            },
+            "isPromoted": {
+                "type": "boolean",
+                "description": "Whether the post is a promoted ad (posts only)",
+                "nullable": true,
+                "example": false
             },
             "postId": {
                 "type": "string",
                 "description": "ID of the parent post this comment belongs to (comments only)",
                 "nullable": true,
                 "example": "abc123"
-            },
-            "parentId": {
-                "type": "string",
-                "description": "Reddit fullname of the parent item (t1_ for comment, t3_ for post) (comments only)",
-                "nullable": true,
-                "example": "t3_abc123"
             },
             "depth": {
                 "type": "number",
