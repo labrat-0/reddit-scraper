@@ -150,61 +150,88 @@ class ScraperInput(BaseModel):
 # --- Output Models ---
 
 
-def _utc_from_timestamp(ts: float | int) -> str:
-    """Convert a Unix timestamp to ISO 8601 UTC string."""
-    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+def _utc_from_ms(ts_ms: Any) -> str:
+    """Convert a millisecond timestamp string/int to ISO 8601 UTC string."""
+    try:
+        return datetime.fromtimestamp(int(ts_ms) / 1000, tz=timezone.utc).isoformat()
+    except (TypeError, ValueError):
+        return ""
 
 
-def format_post(data: dict[str, Any]) -> dict[str, Any]:
-    """Format a Reddit post (t3) from raw JSON into clean output."""
+def _int(value: Any, default: int = 0) -> int:
+    """Best-effort int parse for HTML data attributes."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def format_post_from_thing(thing: Any) -> dict[str, Any]:
+    """Format a post from an old.reddit `<div class="thing">` element.
+
+    `thing` is a BeautifulSoup Tag. Reddit's `.json` API is dead, so all
+    fields come from the server-rendered HTML's data-* attributes and markup.
+    """
+    attrs = thing.attrs
+    classes = attrs.get("class", [])
+    fullname = attrs.get("data-fullname", "")
+    post_id = fullname.replace("t3_", "")
+    permalink = attrs.get("data-permalink", "")
+    domain = attrs.get("data-domain", "")
+    is_self = domain.startswith("self.")
+
+    title_el = thing.select_one("a.title")
+    title = title_el.get_text(strip=True) if title_el else ""
+
+    # selftext only present on a post's own page (expando), not in listings
+    selftext_el = thing.select_one(".expando .usertext-body")
+    selftext = selftext_el.get_text("\n", strip=True) if selftext_el else ""
+
+    flair_el = thing.select_one(".linkflairlabel")
+    flair = flair_el.get_text(strip=True) if flair_el else ""
+
     return {
         "type": "post",
-        "id": data.get("id", ""),
-        "subreddit": data.get("subreddit", ""),
-        "title": data.get("title", ""),
-        "author": data.get("author", "[deleted]"),
-        "selftext": data.get("selftext", ""),
-        "url": f"https://www.reddit.com{data.get('permalink', '')}",
-        "externalUrl": data.get("url", ""),
-        "score": data.get("score", 0),
-        "upvoteRatio": data.get("upvote_ratio", 0.0),
-        "numComments": data.get("num_comments", 0),
-        "created": _utc_from_timestamp(data.get("created_utc", 0)),
-        "isNSFW": data.get("over_18", False),
-        "isSpoiler": data.get("spoiler", False),
-        "isPinned": data.get("stickied", False),
-        "flair": data.get("link_flair_text", ""),
-        "awards": data.get("total_awards_received", 0),
-        "domain": data.get("domain", ""),
-        "isVideo": data.get("is_video", False),
-        "thumbnail": data.get("thumbnail", ""),
+        "id": post_id,
+        "subreddit": attrs.get("data-subreddit", ""),
+        "title": title,
+        "author": attrs.get("data-author", "[deleted]"),
+        "selftext": selftext,
+        "url": f"https://www.reddit.com{permalink}",
+        "externalUrl": "" if is_self else attrs.get("data-url", ""),
+        "score": _int(attrs.get("data-score")),
+        "numComments": _int(attrs.get("data-comments-count")),
+        "created": _utc_from_ms(attrs.get("data-timestamp")),
+        "isNSFW": attrs.get("data-nsfw") == "true",
+        "isSpoiler": attrs.get("data-spoiler") == "true",
+        "isPinned": "stickied" in classes,
+        "flair": flair,
+        "domain": domain,
+        "isPromoted": attrs.get("data-promoted") == "true",
     }
 
 
-def format_comment(data: dict[str, Any], depth: int = 0) -> dict[str, Any]:
-    """Format a Reddit comment (t1) from raw JSON into clean output."""
+def format_comment_from_thing(thing: Any, depth: int = 0) -> dict[str, Any]:
+    """Format a comment from an old.reddit `<div class="thing">` element."""
+    attrs = thing.attrs
+    fullname = attrs.get("data-fullname", "")
+    comment_id = fullname.replace("t1_", "")
+    permalink = attrs.get("data-permalink", "")
+
+    # Comment body lives in the direct entry, not nested child comments
+    body_el = thing.select_one(".entry .usertext-body")
+    body = body_el.get_text("\n", strip=True) if body_el else "[deleted]"
+
+    score_el = thing.select_one(".score.unvoted")
+    score = _int(score_el.get("title")) if score_el else 0
+
     return {
         "type": "comment",
-        "id": data.get("id", ""),
-        "postId": data.get("link_id", "").replace("t3_", ""),
-        "subreddit": data.get("subreddit", ""),
-        "author": data.get("author", "[deleted]"),
-        "body": data.get("body", "[deleted]"),
-        "score": data.get("score", 0),
-        "created": _utc_from_timestamp(data.get("created_utc", 0)),
-        "parentId": data.get("parent_id", ""),
+        "id": comment_id,
+        "subreddit": attrs.get("data-subreddit", ""),
+        "author": attrs.get("data-author", "[deleted]"),
+        "body": body,
+        "score": score,
         "depth": depth,
-        "isSubmitter": data.get("is_submitter", False),
-        "awards": data.get("total_awards_received", 0),
-        "url": f"https://www.reddit.com{data.get('permalink', '')}",
+        "url": f"https://www.reddit.com{permalink}",
     }
-
-
-def format_user_item(data: dict[str, Any]) -> dict[str, Any]:
-    """Format a user's post or comment into clean output."""
-    kind = data.get("_kind", "")
-    if kind == "t3":
-        return format_post(data)
-    elif kind == "t1":
-        return format_comment(data)
-    return {}
