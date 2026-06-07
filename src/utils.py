@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from playwright.async_api import Browser, async_playwright
 
@@ -67,7 +67,12 @@ class PageFetcher:
 
     async def __aenter__(self) -> "PageFetcher":
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=True)
+        # Apify runs the container as root — Chromium needs --no-sandbox to launch.
+        # --disable-dev-shm-usage avoids crashes from the small /dev/shm in containers.
+        self._browser = await self._playwright.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -83,9 +88,18 @@ class PageFetcher:
         if params:
             url = f"{url}?{urlencode(params)}"
 
-        proxy_url: str | None = None
+        proxy_settings: dict[str, Any] | None = None
         if self.proxy_config:
             proxy_url = await self.proxy_config.new_url()
+            # Apify's proxy URL embeds credentials (http://user:pass@host:port).
+            # Playwright ignores creds in `server` — they must be split out, or the
+            # CONNECT hangs and page.goto times out.
+            p = urlparse(proxy_url)
+            proxy_settings = {
+                "server": f"{p.scheme}://{p.hostname}:{p.port}",
+                "username": p.username,
+                "password": p.password,
+            }
 
         ua = random.choice(USER_AGENTS)
 
@@ -96,7 +110,7 @@ class PageFetcher:
             try:
                 context = await self._browser.new_context(
                     user_agent=ua,
-                    proxy={"server": proxy_url} if proxy_url else None,
+                    proxy=proxy_settings,
                     extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                 )
                 await context.add_cookies([
@@ -117,7 +131,7 @@ class PageFetcher:
                 response = await page.goto(
                     url,
                     wait_until="domcontentloaded",
-                    timeout=30_000,
+                    timeout=60_000,
                 )
                 status = response.status if response else 0
 
