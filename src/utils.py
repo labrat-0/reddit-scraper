@@ -1,13 +1,9 @@
-"""Utility functions for rate limiting, retries, and HTTP helpers.
-
-Reddit killed its public `.json` API endpoints (403 since ~May 29 2026).
-We now scrape the server-rendered HTML from old.reddit.com, which exposes
-all post/comment data as `data-*` attributes on `<div class="thing">`.
-"""
+"""Utility functions for rate limiting, retries, and Reddit OAuth."""
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import random
 from typing import Any
@@ -16,26 +12,18 @@ from curl_cffi.requests import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# old.reddit.com serves parseable server-rendered HTML. www/new reddit is a JS
-# shell with no data in the initial HTML, and the .json API now returns 403.
-BASE_URL = "https://old.reddit.com"
+OAUTH_BASE_URL = "https://oauth.reddit.com"
+TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 
-# Each request rotates to a fresh residential IP, and Reddit rate-limits
-# per IP — so a short global interval is safe. Jitter avoids a robotic
-# fixed cadence. ~0.6s base + up to 0.4s jitter ≈ 1 req/sec average.
-REQUEST_INTERVAL = 0.6
-REQUEST_JITTER = 0.4
+# ~85 req/min: safely under the 100 req/min OAuth limit
+REQUEST_INTERVAL = 0.7
+REQUEST_JITTER = 0.3
 
-# Retry settings
 MAX_RETRIES = 3
-RETRY_BASE_DELAY = 5.0  # seconds
+RETRY_BASE_DELAY = 5.0
 
-# Browser UAs (paired with curl_cffi Chrome TLS impersonation)
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-]
+# Reddit requires a descriptive bot User-Agent for OAuth API access.
+OAUTH_USER_AGENT = "python:apify-reddit-scraper:v1.3.0 (by /u/labrat-0)"
 
 
 class RateLimiter:
@@ -47,78 +35,69 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def wait(self) -> None:
-        """Wait until it's safe to make another request, with jitter."""
         async with self._lock:
             now = asyncio.get_event_loop().time()
             elapsed = now - self._last_request
             target = self._interval + random.uniform(0, REQUEST_JITTER)
             if elapsed < target:
-                wait_time = target - elapsed
-                logger.debug(f"Rate limiter: waiting {wait_time:.1f}s")
-                await asyncio.sleep(wait_time)
+                await asyncio.sleep(target - elapsed)
             self._last_request = asyncio.get_event_loop().time()
 
 
-def _get_headers() -> dict[str, str]:
-    """Return browser-like headers for an old.reddit HTML request."""
-    ua = random.choice(USER_AGENTS)
-    if "Windows" in ua:
-        platform = '"Windows"'
-    elif "Macintosh" in ua:
-        platform = '"macOS"'
-    else:
-        platform = '"Linux"'
-    return {
-        "User-Agent": ua,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Sec-Ch-Ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": platform,
-    }
+async def get_oauth_token(client_id: str, client_secret: str) -> str | None:
+    """Get an app-only bearer token via client_credentials grant."""
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    try:
+        async with AsyncSession() as session:
+            response = await session.post(
+                TOKEN_URL,
+                data={"grant_type": "client_credentials"},
+                headers={
+                    "Authorization": f"Basic {credentials}",
+                    "User-Agent": OAUTH_USER_AGENT,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                impersonate="chrome136",
+                timeout=15,
+            )
+        if response.status_code == 200:
+            token = response.json().get("access_token")
+            logger.info("OAuth token obtained successfully")
+            return token
+        logger.error(f"OAuth token request failed: HTTP {response.status_code} — {response.text[:200]}")
+        return None
+    except Exception as e:
+        logger.error(f"OAuth token request error: {e}")
+        return None
 
 
-# old.reddit gates NSFW/quarantined content behind these cookies.
-_COOKIES = {"over18": "1", "_options": '{%22pref_quarantine_optin%22:true}'}
-
-
-async def fetch_html(
+async def fetch_json(
     url: str,
     rate_limiter: RateLimiter,
     params: dict[str, Any] | None = None,
-    proxy_config: Any | None = None,
-) -> str | None:
-    """Fetch a page of HTML with rate limiting and retry logic.
+    oauth_token: str | None = None,
+) -> Any | None:
+    """Fetch JSON from the Reddit OAuth API with rate limiting and retry logic."""
+    headers: dict[str, str] = {"User-Agent": OAUTH_USER_AGENT}
+    if oauth_token:
+        headers["Authorization"] = f"Bearer {oauth_token}"
 
-    Uses curl_cffi to impersonate Chrome's TLS fingerprint. Returns the
-    HTML text, or None if all retries fail.
-    """
     for attempt in range(MAX_RETRIES):
         await rate_limiter.wait()
-
-        proxy_url: str | None = None
-        if proxy_config:
-            proxy_url = await proxy_config.new_url()
-        proxies = {"https": proxy_url, "http": proxy_url} if proxy_url else None
-
         try:
             async with AsyncSession() as session:
                 response = await session.get(
                     url,
                     params=params,
-                    headers=_get_headers(),
-                    cookies=_COOKIES,
+                    headers=headers,
                     timeout=30,
                     impersonate="chrome136",
-                    proxies=proxies,
-                    allow_redirects=True,
                 )
 
             status = response.status_code
 
             if status == 200:
-                return response.text
+                return response.json()
 
             if status == 429:
                 delay = RETRY_BASE_DELAY * (2 ** attempt)

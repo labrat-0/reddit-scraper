@@ -1,6 +1,6 @@
 {
     "title": "Reddit Scraper Input",
-    "description": "Scrape Reddit posts, comments, search results, and user profiles. No API keys required. Batch search across multiple queries in one run.",
+    "description": "Scrape Reddit posts, comments, search results, and user profiles via the official OAuth API. Batch search across multiple queries in one run.",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
@@ -128,17 +128,21 @@
             "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. Slower and uses more proxy traffic.",
             "default": false
         },
-        "proxyConfiguration": {
-            "sectionCaption": "🔒 Proxy Configuration",
-            "sectionDescription": "Reddit blocks datacenter IPs. Residential proxies are required for reliable scraping.",
-            "title": "🔒 Proxy Configuration",
-            "type": "object",
-            "description": "Proxy settings. Residential proxies are strongly recommended — Reddit blocks most datacenter IPs.",
-            "editor": "proxy",
-            "prefill": {
-                "useApifyProxy": true,
-                "apifyProxyGroups": ["RESIDENTIAL"]
-            }
+        "redditClientId": {
+            "sectionCaption": "🔑 Reddit API Credentials (Advanced)",
+            "sectionDescription": "Override the actor owner's Reddit app credentials. Leave blank to use the actor's built-in credentials.",
+            "title": "Reddit Client ID",
+            "type": "string",
+            "description": "Optional: Reddit app client ID. Leave blank — the actor owner pre-configures this as an env var.",
+            "editor": "textfield",
+            "isSecret": false
+        },
+        "redditClientSecret": {
+            "title": "Reddit Client Secret",
+            "type": "string",
+            "description": "Optional: Reddit app client secret. Leave blank — the actor owner pre-configures this as an env var.",
+            "editor": "textfield",
+            "isSecret": true
         }
     },
     "required": ["mode"]

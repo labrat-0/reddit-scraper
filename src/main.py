@@ -9,11 +9,10 @@ from apify import Actor
 
 from .models import ScraperInput
 from .scraper import RedditScraper
-from .utils import RateLimiter
+from .utils import RateLimiter, get_oauth_token
 
 logger = logging.getLogger(__name__)
 
-# Free tier limit
 FREE_TIER_LIMIT = 25
 
 
@@ -47,28 +46,50 @@ async def main() -> None:
             f"max_results={max_results}"
         )
 
-        # 3. Set up proxy — default to residential; Reddit blocks datacenter IPs
-        proxy_input = raw_input.get("proxyConfiguration") or {
-            "useApifyProxy": True,
-            "apifyProxyGroups": ["RESIDENTIAL"],
-        }
-        proxy_config = await Actor.create_proxy_configuration(
-            actor_proxy_input=proxy_input
+        # 3. Reddit OAuth — credentials set as actor env vars by the actor owner.
+        # Users do not need to provide these; they're transparent.
+        client_id = (
+            raw_input.get("redditClientId")
+            or os.environ.get("REDDIT_CLIENT_ID", "")
+        )
+        client_secret = (
+            raw_input.get("redditClientSecret")
+            or os.environ.get("REDDIT_CLIENT_SECRET", "")
         )
 
+        if not client_id or not client_secret:
+            await Actor.fail(
+                status_message=(
+                    "Reddit API credentials not configured. "
+                    "Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET as actor "
+                    "environment variables (create a script app at reddit.com/prefs/apps)."
+                )
+            )
+            return
+
+        oauth_token = await get_oauth_token(client_id, client_secret)
+        if not oauth_token:
+            await Actor.fail(
+                status_message=(
+                    "Failed to obtain Reddit OAuth token. "
+                    "Verify REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET are correct."
+                )
+            )
+            return
+
+        Actor.log.info("Reddit OAuth token obtained — using oauth.reddit.com")
+
         # 4. Resume state (survives migrations)
-        state = await Actor.use_state(
-            default_value={"scraped": 0, "failed": 0}
-        )
+        state = await Actor.use_state(default_value={"scraped": 0, "failed": 0})
 
         await Actor.set_status_message("Connecting to Reddit...")
 
         rate_limiter = RateLimiter()
-        scraper = RedditScraper(rate_limiter, config, proxy_config)
+        scraper = RedditScraper(rate_limiter, config, oauth_token)
 
         count = state["scraped"]
         batch: list[dict] = []
-        batch_size = 25  # Push in batches for efficiency
+        batch_size = 25
 
         try:
             async for item in scraper.scrape():
@@ -79,42 +100,30 @@ async def main() -> None:
                 count += 1
                 state["scraped"] = count
 
-                # Push in batches
                 if len(batch) >= batch_size:
                     await Actor.push_data(batch)
                     batch = []
+                    await Actor.set_status_message(f"Scraped {count}/{max_results} items")
 
-                    await Actor.set_status_message(
-                        f"Scraped {count}/{max_results} items"
-                    )
-
-            # Push remaining items
             if batch:
                 await Actor.push_data(batch)
 
         except Exception as e:
             state["failed"] += 1
             Actor.log.error(f"Scraping error: {e}")
-            # Push whatever we have so far
             if batch:
                 await Actor.push_data(batch)
 
-        # 6. Reliability canary — fail loud on 0 results.
-        # A successful run that scraped nothing almost always means Reddit
-        # changed something (as happened May 2026 when the .json API died).
-        # Failing fast surfaces it in run stats instead of silently billing
-        # compute for empty output.
+        # 5. Fail loud on 0 results — almost always means something broke.
         if count == 0:
             await Actor.fail(
                 status_message=(
                     "Scraped 0 results. Either the targets are empty/invalid, "
-                    "or Reddit changed its HTML and the scraper needs updating. "
-                    "Check the logs for warnings."
+                    "or Reddit changed its API. Check the logs for warnings."
                 )
             )
             return
 
-        # 7. Final status message
         msg = f"Done. Scraped {count} items."
         if state["failed"] > 0:
             msg += f" {state['failed']} errors encountered."
