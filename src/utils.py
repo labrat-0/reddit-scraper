@@ -1,33 +1,36 @@
-"""Utility functions for rate limiting, retries, and Reddit OAuth."""
+"""Utility functions: rate limiting and Playwright-based HTML fetching."""
 
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import random
 from typing import Any
+from urllib.parse import urlencode
 
-from curl_cffi.requests import AsyncSession
+from playwright.async_api import Browser, async_playwright
 
 logger = logging.getLogger(__name__)
 
-OAUTH_BASE_URL = "https://oauth.reddit.com"
-TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+# old.reddit.com serves parseable server-rendered HTML with data-* attributes.
+BASE_URL = "https://old.reddit.com"
 
-# ~85 req/min: safely under the 100 req/min OAuth limit
-REQUEST_INTERVAL = 0.7
-REQUEST_JITTER = 0.3
+# Playwright page loads are heavier than raw HTTP — give more breathing room.
+REQUEST_INTERVAL = 1.5
+REQUEST_JITTER = 0.5
 
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 5.0
 
-# Reddit requires a descriptive bot User-Agent for OAuth API access.
-OAUTH_USER_AGENT = "python:apify-reddit-scraper:v1.3.0 (by /u/labrat-0)"
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+]
 
 
 class RateLimiter:
-    """Simple rate limiter that ensures a minimum interval between requests."""
+    """Minimum-interval rate limiter with jitter."""
 
     def __init__(self, interval: float = REQUEST_INTERVAL) -> None:
         self._interval = interval
@@ -44,104 +47,119 @@ class RateLimiter:
             self._last_request = asyncio.get_event_loop().time()
 
 
-async def get_oauth_token(client_id: str, client_secret: str) -> str | None:
-    """Get an app-only bearer token via client_credentials grant."""
-    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    try:
-        async with AsyncSession() as session:
-            response = await session.post(
-                TOKEN_URL,
-                data={"grant_type": "client_credentials"},
-                headers={
-                    "Authorization": f"Basic {credentials}",
-                    "User-Agent": OAUTH_USER_AGENT,
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-                impersonate="chrome136",
-                timeout=15,
-            )
-        if response.status_code == 200:
-            token = response.json().get("access_token")
-            logger.info("OAuth token obtained successfully")
-            return token
-        logger.error(f"OAuth token request failed: HTTP {response.status_code} — {response.text[:200]}")
-        return None
-    except Exception as e:
-        logger.error(f"OAuth token request error: {e}")
-        return None
+class PageFetcher:
+    """Playwright-based HTML fetcher backed by a shared Chromium instance.
 
+    A real browser bypasses Cloudflare bot challenges that block plain HTTP
+    clients. Use as an async context manager so the browser is properly torn
+    down after scraping completes.
+    """
 
-async def fetch_json(
-    url: str,
-    rate_limiter: RateLimiter,
-    params: dict[str, Any] | None = None,
-    oauth_token: str | None = None,
-) -> Any | None:
-    """Fetch JSON from the Reddit OAuth API with rate limiting and retry logic."""
-    headers: dict[str, str] = {"User-Agent": OAUTH_USER_AGENT}
-    if oauth_token:
-        headers["Authorization"] = f"Bearer {oauth_token}"
+    def __init__(
+        self,
+        rate_limiter: RateLimiter,
+        proxy_config: Any = None,
+    ) -> None:
+        self.rate_limiter = rate_limiter
+        self.proxy_config = proxy_config
+        self._playwright = None
+        self._browser: Browser | None = None
 
-    for attempt in range(MAX_RETRIES):
-        await rate_limiter.wait()
-        try:
-            async with AsyncSession() as session:
-                response = await session.get(
+    async def __aenter__(self) -> "PageFetcher":
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=True)
+        return self
+
+    async def __aexit__(self, *_: Any) -> None:
+        if self._browser:
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
+
+    async def fetch(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> str | None:
+        """Navigate to a URL and return the page HTML, or None on failure."""
+        if params:
+            url = f"{url}?{urlencode(params)}"
+
+        proxy_url: str | None = None
+        if self.proxy_config:
+            proxy_url = await self.proxy_config.new_url()
+
+        ua = random.choice(USER_AGENTS)
+
+        for attempt in range(MAX_RETRIES):
+            await self.rate_limiter.wait()
+            context = None
+            page = None
+            try:
+                context = await self._browser.new_context(
+                    user_agent=ua,
+                    proxy={"server": proxy_url} if proxy_url else None,
+                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+                )
+                await context.add_cookies([
+                    {
+                        "name": "over18",
+                        "value": "1",
+                        "domain": "old.reddit.com",
+                        "path": "/",
+                    },
+                    {
+                        "name": "_options",
+                        "value": '{%22pref_quarantine_optin%22:true}',
+                        "domain": "old.reddit.com",
+                        "path": "/",
+                    },
+                ])
+                page = await context.new_page()
+                response = await page.goto(
                     url,
-                    params=params,
-                    headers=headers,
-                    timeout=30,
-                    impersonate="chrome136",
+                    wait_until="domcontentloaded",
+                    timeout=30_000,
                 )
+                status = response.status if response else 0
 
-            status = response.status_code
+                if status == 200:
+                    return await page.content()
 
-            if status == 200:
-                return response.json()
+                if status == 404:
+                    logger.warning(f"Not found (404): {url}")
+                    return None
 
-            if status == 429:
-                delay = RETRY_BASE_DELAY * (2 ** attempt)
+                if status == 429:
+                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        f"Rate limited (429) on {url}. "
+                        f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
                 logger.warning(
-                    f"Rate limited (429) on {url}. "
+                    f"HTTP {status} on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
+                )
+                await asyncio.sleep(RETRY_BASE_DELAY)
+                continue
+
+            except Exception as e:
+                delay = RETRY_BASE_DELAY * (attempt + 1)
+                logger.warning(
+                    f"Playwright error on {url}: {e}. "
                     f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
                 )
                 await asyncio.sleep(delay)
                 continue
 
-            if status == 403:
-                logger.warning(
-                    f"Forbidden (403) on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
-                )
-                await asyncio.sleep(5.0)
-                continue
+            finally:
+                if page:
+                    await page.close()
+                if context:
+                    await context.close()
 
-            if status == 404:
-                logger.warning(f"Not found (404): {url}")
-                return None
-
-            if status >= 500:
-                delay = 10.0 * (attempt + 1)
-                logger.warning(
-                    f"Server error ({status}) on {url}. "
-                    f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
-                )
-                await asyncio.sleep(delay)
-                continue
-
-            logger.warning(f"Unexpected status {status} on {url}")
-            return None
-
-        except Exception as e:
-            delay = 10.0 * (attempt + 1)
-            logger.warning(
-                f"Request error on {url}: {e}. "
-                f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
-            )
-            await asyncio.sleep(delay)
-            continue
-
-    logger.error(f"All {MAX_RETRIES} retries exhausted for {url}")
-    return None
+        logger.error(f"All {MAX_RETRIES} retries exhausted for {url}")
+        return None
 
 
 def parse_post_url(url: str) -> tuple[str, str] | None:

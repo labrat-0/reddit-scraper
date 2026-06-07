@@ -150,64 +150,107 @@ class ScraperInput(BaseModel):
 # --- Output Formatters ---
 
 
-def _utc_from_ts(ts: Any) -> str:
-    """Convert a Unix seconds timestamp to ISO 8601 UTC string."""
+def _utc_from_ms(ts_ms: Any) -> str:
+    """Convert a millisecond timestamp string/int to ISO 8601 UTC string."""
     try:
-        return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
+        return datetime.fromtimestamp(int(ts_ms) / 1000, tz=timezone.utc).isoformat()
     except (TypeError, ValueError):
         return ""
 
 
-def format_post_from_json(data: dict[str, Any]) -> dict[str, Any]:
-    """Format a post from Reddit OAuth JSON API response data."""
-    permalink = data.get("permalink", "")
-    is_self = data.get("is_self", False)
+def _int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
-    thumbnail = data.get("thumbnail", "")
-    if thumbnail in ("self", "default", "nsfw", "spoiler", "image", ""):
-        thumbnail = ""
+
+def format_post_from_thing(thing: Any) -> dict[str, Any]:
+    """Format a post from an old.reddit `<div class="thing">` BeautifulSoup tag."""
+    attrs = thing.attrs
+    classes = attrs.get("class", [])
+    fullname = attrs.get("data-fullname", "")
+    post_id = fullname.replace("t3_", "")
+    permalink = attrs.get("data-permalink", "")
+    domain = attrs.get("data-domain", "")
+    is_self = domain.startswith("self.")
+
+    title_el = thing.select_one("a.title")
+    title = title_el.get_text(strip=True) if title_el else ""
+
+    selftext_el = thing.select_one(".expando .usertext-body")
+    selftext = selftext_el.get_text("\n", strip=True) if selftext_el else ""
+
+    flair_el = thing.select_one(".linkflairlabel")
+    flair = flair_el.get_text(strip=True) if flair_el else ""
+
+    thumb_img = thing.select_one("a.thumbnail img")
+    thumbnail = ""
+    if thumb_img and thumb_img.get("src"):
+        src = thumb_img["src"]
+        thumbnail = f"https:{src}" if src.startswith("//") else src
+
+    is_video = domain in ("v.redd.it", "youtube.com", "youtu.be") or (
+        attrs.get("data-url", "").endswith((".mp4", ".gifv"))
+    )
 
     return {
         "type": "post",
-        "id": data.get("id", ""),
-        "subreddit": data.get("subreddit", ""),
-        "title": data.get("title", ""),
-        "author": data.get("author") or "[deleted]",
-        "selftext": data.get("selftext", ""),
-        "url": f"https://www.reddit.com{permalink}" if permalink else "",
-        "externalUrl": "" if is_self else data.get("url", ""),
-        "score": int(data.get("score") or 0),
-        "numComments": int(data.get("num_comments") or 0),
-        "created": _utc_from_ts(data.get("created_utc")),
-        "isNSFW": bool(data.get("over_18", False)),
-        "isSpoiler": bool(data.get("spoiler", False)),
-        "isPinned": bool(data.get("stickied", False)),
-        "flair": data.get("link_flair_text") or "",
-        "awards": int(data.get("total_awards_received") or 0),
-        "domain": data.get("domain", ""),
-        "isVideo": bool(data.get("is_video", False)),
+        "id": post_id,
+        "subreddit": attrs.get("data-subreddit", ""),
+        "title": title,
+        "author": attrs.get("data-author", "[deleted]"),
+        "selftext": selftext,
+        "url": f"https://www.reddit.com{permalink}",
+        "externalUrl": "" if is_self else attrs.get("data-url", ""),
+        "score": _int(attrs.get("data-score")),
+        "numComments": _int(attrs.get("data-comments-count")),
+        "created": _utc_from_ms(attrs.get("data-timestamp")),
+        "isNSFW": attrs.get("data-nsfw") == "true",
+        "isSpoiler": attrs.get("data-spoiler") == "true",
+        "isPinned": "stickied" in classes,
+        "flair": flair,
+        "awards": _int(attrs.get("data-gildings")),
+        "domain": domain,
+        "isVideo": is_video,
         "thumbnail": thumbnail,
-        "isPromoted": bool(data.get("promoted", False)),
+        "isPromoted": attrs.get("data-promoted") == "true",
     }
 
 
-def format_comment_from_json(data: dict[str, Any], depth: int = 0) -> dict[str, Any]:
-    """Format a comment from Reddit OAuth JSON API response data."""
-    link_id = data.get("link_id", "")
-    post_id = link_id.replace("t3_", "") if link_id else ""
-    permalink = data.get("permalink", "")
+def format_comment_from_thing(thing: Any, depth: int = 0) -> dict[str, Any]:
+    """Format a comment from an old.reddit `<div class="thing">` BeautifulSoup tag."""
+    attrs = thing.attrs
+    classes = attrs.get("class", [])
+    fullname = attrs.get("data-fullname", "")
+    comment_id = fullname.replace("t1_", "")
+    permalink = attrs.get("data-permalink", "")
+
+    post_id = ""
+    parts = [p for p in permalink.split("/") if p]
+    if len(parts) >= 4 and parts[2] == "comments":
+        post_id = parts[3]
+
+    body_el = thing.select_one(".entry .usertext-body")
+    body = body_el.get_text("\n", strip=True) if body_el else "[deleted]"
+
+    score_el = thing.select_one(".score.unvoted")
+    score = _int(score_el.get("title")) if score_el else 0
+
+    time_el = thing.select_one(".tagline time")
+    created = time_el.get("datetime", "") if time_el else ""
 
     return {
         "type": "comment",
-        "id": data.get("id", ""),
+        "id": comment_id,
         "postId": post_id,
-        "subreddit": data.get("subreddit", ""),
-        "author": data.get("author") or "[deleted]",
-        "body": data.get("body", "[deleted]"),
-        "score": int(data.get("score") or 0),
-        "created": _utc_from_ts(data.get("created_utc")),
+        "subreddit": attrs.get("data-subreddit", ""),
+        "author": attrs.get("data-author", "[deleted]"),
+        "body": body,
+        "score": score,
+        "created": created,
         "depth": depth,
-        "isSubmitter": bool(data.get("is_submitter", False)),
-        "awards": int(data.get("total_awards_received") or 0),
-        "url": f"https://www.reddit.com{permalink}" if permalink else "",
+        "isSubmitter": "submitter" in classes,
+        "awards": _int(attrs.get("data-gildings")),
+        "url": f"https://www.reddit.com{permalink}",
     }
