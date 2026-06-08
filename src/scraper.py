@@ -15,6 +15,7 @@ from .models import (
     ScraperInput,
     ScrapingMode,
     format_comment_from_thing,
+    format_post_from_search_result,
     format_post_from_thing,
 )
 from .utils import BASE_URL, PageFetcher, parse_post_url
@@ -79,6 +80,60 @@ class RedditScraper:
         if next_link and next_link.get("href"):
             return next_link["href"]
         return None
+
+    @staticmethod
+    def _search_things(soup: BeautifulSoup) -> list[Any]:
+        """Return link search-result elements from a search page."""
+        return soup.select('div.search-result-link[data-fullname^="t3_"]')
+
+    @staticmethod
+    def _next_search_url(soup: BeautifulSoup) -> str | None:
+        """Return the 'next page' URL for search results.
+
+        Search pages render two paginators (subreddit matches via `type=sr`, and link
+        results via `after=t3_`). Prefer the link-results one.
+        """
+        next_links = soup.select('.nextprev a[rel~="next"]')
+        for link in next_links:
+            href = link.get("href", "")
+            if "after=t3_" in href:
+                return href
+        if next_links and next_links[0].get("href"):
+            return next_links[0]["href"]
+        return None
+
+    async def _paginate_search(
+        self, url: str, params: dict[str, Any]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield formatted posts across paginated search-result pages."""
+        page = 0
+        current_url = url
+        current_params: dict[str, Any] | None = params
+
+        while True:
+            soup = await self._get_soup(current_url, current_params)
+            if soup is None:
+                break
+
+            results = self._search_things(soup)
+            if not results:
+                logger.warning(f"No posts found on {current_url}")
+                break
+
+            for result in results:
+                yield format_post_from_search_result(result)
+
+            next_url = self._next_search_url(soup)
+            if not next_url:
+                break
+
+            page += 1
+            if page >= MAX_PAGES:
+                logger.info("Reached pagination limit")
+                break
+
+            current_url = next_url
+            current_params = None
 
     async def _paginate_posts(
         self, url: str, params: dict[str, Any]
@@ -159,7 +214,7 @@ class RedditScraper:
             if self.config.search_sort.value == "top":
                 params["t"] = self.config.time_filter.value
 
-            async for post in self._paginate_posts(url, params):
+            async for post in self._paginate_search(url, params):
                 post_id = post["id"]
                 if post_id in seen_ids:
                     continue
