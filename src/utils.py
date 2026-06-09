@@ -53,6 +53,10 @@ class PageFetcher:
     A real browser bypasses Cloudflare bot challenges that block plain HTTP
     clients. Use as an async context manager so the browser is properly torn
     down after scraping completes.
+
+    One persistent browser context is reused across all fetches to avoid
+    re-establishing a proxy tunnel on every request (major cost saving).
+    The context is recreated only if a fatal error forces it.
     """
 
     def __init__(
@@ -64,6 +68,8 @@ class PageFetcher:
         self.proxy_config = proxy_config
         self._playwright = None
         self._browser: Browser | None = None
+        self._context: Any = None
+        self._proxy_settings: dict[str, Any] | None = None
 
     async def __aenter__(self) -> "PageFetcher":
         self._playwright = await async_playwright().start()
@@ -73,9 +79,57 @@ class PageFetcher:
             headless=True,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
+        await self._init_context()
         return self
 
+    async def _init_context(self) -> None:
+        """Create (or recreate) the shared browser context."""
+        if self._context:
+            try:
+                await self._context.close()
+            except Exception:
+                pass
+            self._context = None
+
+        if self.proxy_config:
+            proxy_url = await self.proxy_config.new_url()
+            # Apify's proxy URL embeds credentials (http://user:pass@host:port).
+            # Playwright ignores creds in `server` — they must be split out, or the
+            # CONNECT hangs and page.goto times out.
+            p = urlparse(proxy_url)
+            self._proxy_settings = {
+                "server": f"{p.scheme}://{p.hostname}:{p.port}",
+                "username": p.username,
+                "password": p.password,
+            }
+
+        ua = random.choice(USER_AGENTS)
+        self._context = await self._browser.new_context(
+            user_agent=ua,
+            proxy=self._proxy_settings,
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        )
+        await self._context.add_cookies([
+            {
+                "name": "over18",
+                "value": "1",
+                "domain": "old.reddit.com",
+                "path": "/",
+            },
+            {
+                "name": "_options",
+                "value": '{%22pref_quarantine_optin%22:true}',
+                "domain": "old.reddit.com",
+                "path": "/",
+            },
+        ])
+
     async def __aexit__(self, *_: Any) -> None:
+        if self._context:
+            try:
+                await self._context.close()
+            except Exception:
+                pass
         if self._browser:
             await self._browser.close()
         if self._playwright:
@@ -88,46 +142,11 @@ class PageFetcher:
         if params:
             url = f"{url}?{urlencode(params)}"
 
-        proxy_settings: dict[str, Any] | None = None
-        if self.proxy_config:
-            proxy_url = await self.proxy_config.new_url()
-            # Apify's proxy URL embeds credentials (http://user:pass@host:port).
-            # Playwright ignores creds in `server` — they must be split out, or the
-            # CONNECT hangs and page.goto times out.
-            p = urlparse(proxy_url)
-            proxy_settings = {
-                "server": f"{p.scheme}://{p.hostname}:{p.port}",
-                "username": p.username,
-                "password": p.password,
-            }
-
-        ua = random.choice(USER_AGENTS)
-
         for attempt in range(MAX_RETRIES):
             await self.rate_limiter.wait()
-            context = None
             page = None
             try:
-                context = await self._browser.new_context(
-                    user_agent=ua,
-                    proxy=proxy_settings,
-                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-                )
-                await context.add_cookies([
-                    {
-                        "name": "over18",
-                        "value": "1",
-                        "domain": "old.reddit.com",
-                        "path": "/",
-                    },
-                    {
-                        "name": "_options",
-                        "value": '{%22pref_quarantine_optin%22:true}',
-                        "domain": "old.reddit.com",
-                        "path": "/",
-                    },
-                ])
-                page = await context.new_page()
+                page = await self._context.new_page()
                 response = await page.goto(
                     url,
                     wait_until="domcontentloaded",
@@ -163,14 +182,20 @@ class PageFetcher:
                     f"Playwright error on {url}: {e}. "
                     f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
                 )
+                # Recreate context on error — it may be in a bad state.
+                try:
+                    await self._init_context()
+                except Exception as reinit_err:
+                    logger.error(f"Failed to reinit context: {reinit_err}")
                 await asyncio.sleep(delay)
                 continue
 
             finally:
                 if page:
-                    await page.close()
-                if context:
-                    await context.close()
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
 
         logger.error(f"All {MAX_RETRIES} retries exhausted for {url}")
         return None

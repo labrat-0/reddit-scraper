@@ -8,7 +8,7 @@ import os
 from apify import Actor
 
 from .models import ScraperInput
-from .scraper import RedditScraper
+from .scraper import MAX_PAGES, MAX_PAGES_FREE, RedditScraper
 from .utils import PageFetcher, RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,10 @@ async def main() -> None:
                 "Subscribe to the actor for unlimited results."
             )
 
+        # Free users need at most 1 page (25 posts) — cap pagination to avoid
+        # burning proxy budget for users who will never see more than 25 results.
+        max_pages = MAX_PAGES_FREE if not is_paying and os.environ.get("APIFY_IS_AT_HOME") == "1" else MAX_PAGES
+
         Actor.log.info(
             f"Starting Reddit Scraper | mode={config.mode.value} | "
             f"max_results={max_results}"
@@ -67,7 +71,7 @@ async def main() -> None:
         batch_size = 25
 
         async with PageFetcher(rate_limiter, proxy_config) as fetcher:
-            scraper = RedditScraper(fetcher, config)
+            scraper = RedditScraper(fetcher, config, max_pages=max_pages)
 
             try:
                 async for item in scraper.scrape():

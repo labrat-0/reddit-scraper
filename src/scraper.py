@@ -23,6 +23,8 @@ from .utils import BASE_URL, PageFetcher, parse_post_url
 logger = logging.getLogger(__name__)
 
 MAX_PAGES = 40
+MAX_PAGES_FREE = 1
+EMPTY_PAGE_ABORT = 2
 
 
 class RedditScraper:
@@ -32,9 +34,11 @@ class RedditScraper:
         self,
         fetcher: PageFetcher,
         config: ScraperInput,
+        max_pages: int = MAX_PAGES,
     ) -> None:
         self.fetcher = fetcher
         self.config = config
+        self.max_pages = max_pages
 
     async def scrape(self) -> AsyncIterator[dict[str, Any]]:
         """Main entry point — dispatches to the correct mode."""
@@ -107,6 +111,7 @@ class RedditScraper:
     ) -> AsyncIterator[dict[str, Any]]:
         """Yield formatted posts across paginated search-result pages."""
         page = 0
+        empty_streak = 0
         current_url = url
         current_params: dict[str, Any] | None = params
 
@@ -117,8 +122,13 @@ class RedditScraper:
 
             results = self._search_things(soup)
             if not results:
-                logger.warning(f"No posts found on {current_url}")
-                break
+                empty_streak += 1
+                logger.warning(f"No posts found on {current_url} (empty streak: {empty_streak})")
+                if empty_streak >= EMPTY_PAGE_ABORT:
+                    logger.warning("Consecutive empty pages — aborting search pagination")
+                    break
+                continue
+            empty_streak = 0
 
             for result in results:
                 yield format_post_from_search_result(result)
@@ -128,7 +138,7 @@ class RedditScraper:
                 break
 
             page += 1
-            if page >= MAX_PAGES:
+            if page >= self.max_pages:
                 logger.info("Reached pagination limit")
                 break
 
@@ -140,6 +150,7 @@ class RedditScraper:
     ) -> AsyncIterator[dict[str, Any]]:
         """Yield formatted posts across paginated listing pages."""
         page = 0
+        empty_streak = 0
         current_url = url
         current_params: dict[str, Any] | None = params
 
@@ -150,8 +161,13 @@ class RedditScraper:
 
             things = self._post_things(soup)
             if not things:
-                logger.warning(f"No posts found on {current_url}")
-                break
+                empty_streak += 1
+                logger.warning(f"No posts found on {current_url} (empty streak: {empty_streak})")
+                if empty_streak >= EMPTY_PAGE_ABORT:
+                    logger.warning("Consecutive empty pages — aborting post pagination")
+                    break
+                continue
+            empty_streak = 0
 
             for thing in things:
                 yield format_post_from_thing(thing)
@@ -161,7 +177,7 @@ class RedditScraper:
                 break
 
             page += 1
-            if page >= MAX_PAGES:
+            if page >= self.max_pages:
                 logger.info("Reached pagination limit")
                 break
 
@@ -241,6 +257,7 @@ class RedditScraper:
 
             params: dict[str, Any] = {"limit": 25}
             page = 0
+            empty_streak = 0
             current_url = url
             current_params: dict[str, Any] | None = params
 
@@ -251,7 +268,12 @@ class RedditScraper:
 
                 things = soup.select("div.thing[data-fullname]")
                 if not things:
-                    break
+                    empty_streak += 1
+                    if empty_streak >= EMPTY_PAGE_ABORT:
+                        logger.warning("Consecutive empty pages — aborting user pagination")
+                        break
+                    continue
+                empty_streak = 0
 
                 for thing in things:
                     fullname = thing.get("data-fullname", "")
@@ -266,7 +288,7 @@ class RedditScraper:
                 if not next_url:
                     break
                 page += 1
-                if page >= MAX_PAGES:
+                if page >= self.max_pages:
                     break
                 current_url = next_url
                 current_params = None
