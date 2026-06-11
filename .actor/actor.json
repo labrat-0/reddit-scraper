@@ -9,5 +9,9 @@
     "storages": {
         "dataset": "./dataset_schema.json"
     },
-    "dockerfile": "./Dockerfile"
+    "dockerfile": "./Dockerfile",
+    "defaultRunOptions": {
+        "memoryMbytes": 2048,
+        "timeoutSecs": 1800
+    }
 }

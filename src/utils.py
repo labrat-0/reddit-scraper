@@ -19,8 +19,17 @@ BASE_URL = "https://old.reddit.com"
 REQUEST_INTERVAL = 1.5
 REQUEST_JITTER = 0.5
 
-MAX_RETRIES = 3
+MAX_RETRIES = 2
 RETRY_BASE_DELAY = 5.0
+
+# Navigation timeout. With heavy resources blocked (see BLOCKED_RESOURCE_TYPES),
+# old.reddit pages load fast — a tight ceiling caps the timeout-burn failure mode.
+NAV_TIMEOUT_MS = 25_000
+
+# Resource types aborted before they hit the proxy. old.reddit HTML parsing never
+# needs images/CSS/fonts/media; blocking them cuts residential proxy bandwidth ~90%.
+# Scripts are kept so any Cloudflare JS challenge can still solve.
+BLOCKED_RESOURCE_TYPES = {"image", "media", "font", "stylesheet"}
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
@@ -70,8 +79,13 @@ class PageFetcher:
         self._browser: Browser | None = None
         self._context: Any = None
         self._proxy_settings: dict[str, Any] | None = None
+        # Cost-tracking: bytes of HTML returned + wall-clock start, read by the
+        # main loop's circuit breaker to abort runaway runs.
+        self.total_bytes: int = 0
+        self.start_time: float = 0.0
 
     async def __aenter__(self) -> "PageFetcher":
+        self.start_time = asyncio.get_event_loop().time()
         self._playwright = await async_playwright().start()
         # Apify runs the container as root — Chromium needs --no-sandbox to launch.
         # --disable-dev-shm-usage avoids crashes from the small /dev/shm in containers.
@@ -124,6 +138,17 @@ class PageFetcher:
             },
         ])
 
+        # Abort heavy resources at the context level so the route survives the
+        # per-page new_page()/close() cycle in fetch(). Biggest proxy-cost lever.
+        await self._context.route("**/*", self._route_handler)
+
+    @staticmethod
+    async def _route_handler(route: Any) -> None:
+        if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+            await route.abort()
+        else:
+            await route.continue_()
+
     async def __aexit__(self, *_: Any) -> None:
         if self._context:
             try:
@@ -150,12 +175,14 @@ class PageFetcher:
                 response = await page.goto(
                     url,
                     wait_until="domcontentloaded",
-                    timeout=60_000,
+                    timeout=NAV_TIMEOUT_MS,
                 )
                 status = response.status if response else 0
 
                 if status == 200:
-                    return await page.content()
+                    html = await page.content()
+                    self.total_bytes += len(html)
+                    return html
 
                 if status == 404:
                     logger.warning(f"Not found (404): {url}")

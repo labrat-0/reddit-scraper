@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -14,6 +15,23 @@ from .utils import PageFetcher, RateLimiter
 logger = logging.getLogger(__name__)
 
 FREE_TIER_LIMIT = 25
+
+# Margin circuit breaker: abort a run once its estimated compute + proxy cost
+# exceeds the gross revenue it has earned so far (with a small floor). This kills
+# wedged/timeout runs (e.g. the May 30 2026 case: minutes of burn for ~no output)
+# WITHOUT truncating large efficient runs, whose budget scales with result count.
+GROSS_PER_RESULT_USD = 0.0012  # charged price after June 16 2026: $1.20 / 1,000
+MIN_COST_ALLOWANCE_USD = 0.05  # headroom before the breaker can ever trip
+CU_RATE_USD_PER_HR = 0.20  # Starter tier: $0.20 per compute-unit-hour (1GB·1hr)
+RESIDENTIAL_USD_PER_GB = 8.0
+
+
+def _estimate_run_cost_usd(elapsed_s: float, total_bytes: int) -> float:
+    """Rough run cost = compute (mem·time) + residential proxy bandwidth."""
+    mem_gb = int(os.environ.get("ACTOR_MEMORY_MBYTES", "2048")) / 1024
+    compute_usd = (elapsed_s / 3600) * mem_gb * CU_RATE_USD_PER_HR
+    proxy_usd = (total_bytes / 1e9) * RESIDENTIAL_USD_PER_GB
+    return compute_usd + proxy_usd
 
 
 async def main() -> None:
@@ -69,6 +87,7 @@ async def main() -> None:
         count = state["scraped"]
         batch: list[dict] = []
         batch_size = 25
+        cost_exceeded = False
 
         async with PageFetcher(rate_limiter, proxy_config) as fetcher:
             scraper = RedditScraper(fetcher, config, max_pages=max_pages)
@@ -88,6 +107,23 @@ async def main() -> None:
                         await Actor.set_status_message(
                             f"Scraped {count}/{max_results} items"
                         )
+
+                    # Margin breaker — checked per item (not per batch) so wedged
+                    # low-yield runs that never fill a batch are still caught.
+                    elapsed = asyncio.get_event_loop().time() - fetcher.start_time
+                    est_cost = _estimate_run_cost_usd(elapsed, fetcher.total_bytes)
+                    budget = max(MIN_COST_ALLOWANCE_USD, count * GROSS_PER_RESULT_USD)
+                    if est_cost > budget:
+                        cost_exceeded = True
+                        Actor.log.warning(
+                            f"Margin breaker tripped: est cost ~${est_cost:.3f} > "
+                            f"budget ${budget:.3f} after {count} items. "
+                            "Stopping to protect margin."
+                        )
+                        await Actor.set_status_message(
+                            f"Stopped at {count} items — run cost exceeded revenue."
+                        )
+                        break
 
                 if batch:
                     await Actor.push_data(batch)
@@ -110,6 +146,8 @@ async def main() -> None:
             return
 
         msg = f"Done. Scraped {count} items."
+        if cost_exceeded:
+            msg += " Stopped early at run cost cap."
         if state["failed"] > 0:
             msg += f" {state['failed']} errors encountered."
         if (
