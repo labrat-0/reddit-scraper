@@ -83,6 +83,9 @@ class PageFetcher:
         # main loop's circuit breaker to abort runaway runs.
         self.total_bytes: int = 0
         self.start_time: float = 0.0
+        # Instrumentation: confirm resource blocking is working in production logs.
+        self.blocked_requests: int = 0
+        self.allowed_requests: int = 0
 
     async def __aenter__(self) -> "PageFetcher":
         self.start_time = asyncio.get_event_loop().time()
@@ -142,11 +145,12 @@ class PageFetcher:
         # per-page new_page()/close() cycle in fetch(). Biggest proxy-cost lever.
         await self._context.route("**/*", self._route_handler)
 
-    @staticmethod
-    async def _route_handler(route: Any) -> None:
+    async def _route_handler(self, route: Any) -> None:
         if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+            self.blocked_requests += 1
             await route.abort()
         else:
+            self.allowed_requests += 1
             await route.continue_()
 
     async def __aexit__(self, *_: Any) -> None:

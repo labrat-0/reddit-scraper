@@ -145,6 +145,18 @@ async def main() -> None:
             )
             return
 
+        # Instrumentation: prove resource blocking + show run economics in logs.
+        elapsed = asyncio.get_event_loop().time() - fetcher.start_time
+        est_cost = _estimate_run_cost_usd(elapsed, fetcher.total_bytes)
+        total_reqs = fetcher.blocked_requests + fetcher.allowed_requests
+        blocked_pct = (fetcher.blocked_requests / total_reqs * 100) if total_reqs else 0
+        Actor.log.info(
+            f"Cost report | requests: {fetcher.blocked_requests} blocked "
+            f"({blocked_pct:.0f}%) / {fetcher.allowed_requests} allowed | "
+            f"html: {fetcher.total_bytes / 1024:.0f} KB | "
+            f"elapsed: {elapsed:.1f}s | est cost: ${est_cost:.4f}"
+        )
+
         msg = f"Done. Scraped {count} items."
         if cost_exceeded:
             msg += " Stopped early at run cost cap."
