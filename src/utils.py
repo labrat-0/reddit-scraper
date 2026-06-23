@@ -22,7 +22,9 @@ BASE_URL = "https://www.reddit.com"
 REQUEST_INTERVAL = 1.5
 REQUEST_JITTER = 0.5
 
-MAX_RETRIES = 2
+# 3 (not 2): a failed warm-up + IP rotation can consume an attempt before the
+# first real fetch, so give the fetch itself headroom.
+MAX_RETRIES = 3
 RETRY_BASE_DELAY = 5.0
 
 # Navigation timeout. With heavy resources blocked (see BLOCKED_RESOURCE_TYPES),
@@ -336,8 +338,19 @@ class PageFetcher:
         for attempt in range(MAX_RETRIES):
             await self.rate_limiter.wait()
             if not self._warmed:
-                await self.warmup()
-                self._warmed = True
+                # Only mark warmed if the challenge actually set cookies; a failed
+                # warm-up (e.g. dead proxy tunnel) should not burn a fetch attempt
+                # on a context that was never cleared.
+                cookies = await self.warmup()
+                if cookies > 0:
+                    self._warmed = True
+                else:
+                    logger.warning("warmup set no cookies — rotating IP")
+                    try:
+                        await self._init_context()
+                    except Exception as reinit_err:
+                        logger.error(f"Failed to reinit context: {reinit_err}")
+                    continue
 
             page = None
             try:

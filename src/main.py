@@ -182,7 +182,7 @@ async def main() -> None:
         Actor.log.info(
             f"Cost report | requests: {fetcher.blocked_requests} blocked "
             f"({blocked_pct:.0f}%) / {fetcher.allowed_requests} allowed | "
-            f"html: {fetcher.total_bytes / 1024:.0f} KB | "
+            f"data: {fetcher.total_bytes / 1024:.0f} KB | "
             f"elapsed: {elapsed:.1f}s | est cost: ${est_cost:.4f}"
         )
 
