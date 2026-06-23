@@ -26,16 +26,53 @@ RETRY_BASE_DELAY = 5.0
 # old.reddit pages load fast — a tight ceiling caps the timeout-burn failure mode.
 NAV_TIMEOUT_MS = 25_000
 
-# Resource types aborted before they hit the proxy. old.reddit HTML parsing never
-# needs images/CSS/fonts/media; blocking them cuts residential proxy bandwidth ~90%.
-# Scripts are kept so any Cloudflare JS challenge can still solve.
-BLOCKED_RESOURCE_TYPES = {"image", "media", "font", "stylesheet"}
+# Resource types aborted before they hit the proxy. images/fonts/media are the
+# bulk of bandwidth and old.reddit HTML parsing never needs them — blocking cuts
+# residential proxy cost ~85%. CSS is deliberately NOT blocked: a real browser
+# always fetches stylesheets, and their absence makes the request graph look
+# non-human, which trips Reddit's 2026 bot detection (403). Scripts are kept so
+# any Cloudflare JS challenge can still solve.
+BLOCKED_RESOURCE_TYPES = {"image", "media", "font"}
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+# Each profile pairs a UA with a matching Sec-Ch-Ua-Platform + Sec-Ch-Ua so the
+# client hints stay self-consistent. A UA/platform mismatch is itself a bot tell.
+# (user_agent, sec_ch_ua_platform, sec_ch_ua)
+BROWSER_PROFILES = [
+    (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        '"Windows"',
+        '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    ),
+    (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        '"macOS"',
+        '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    ),
+    (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        '"Linux"',
+        '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    ),
 ]
+
+# Injected before any page script runs to mask the obvious headless-Chromium
+# tells Reddit fingerprints: navigator.webdriver, empty plugins, missing
+# window.chrome, and the languages array.
+STEALTH_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+Object.defineProperty(navigator, 'plugins', {
+    get: () => [1, 2, 3, 4, 5].map(i => ({name: 'Plugin ' + i})),
+});
+window.chrome = window.chrome || {runtime: {}};
+const _query = window.navigator.permissions && window.navigator.permissions.query;
+if (_query) {
+    window.navigator.permissions.query = (p) =>
+        p && p.name === 'notifications'
+            ? Promise.resolve({state: Notification.permission})
+            : _query(p);
+}
+"""
 
 
 class RateLimiter:
@@ -120,12 +157,32 @@ class PageFetcher:
                 "password": p.password,
             }
 
-        ua = random.choice(USER_AGENTS)
+        user_agent, ua_platform, sec_ch_ua = random.choice(BROWSER_PROFILES)
         self._context = await self._browser.new_context(
-            user_agent=ua,
+            user_agent=user_agent,
             proxy=self._proxy_settings,
-            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+            # Full Chrome header set. old.reddit/Reddit flags requests whose
+            # headers don't match a real browser, so send the same Accept,
+            # client-hint, and Sec-Fetch headers Chrome sends on a top-level nav.
+            extra_http_headers={
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                    "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                    "application/signed-exchange;v=b3;q=0.7"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Ch-Ua": sec_ch_ua,
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": ua_platform,
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+            },
         )
+        # Mask headless tells before any page script runs.
+        await self._context.add_init_script(STEALTH_INIT_SCRIPT)
         await self._context.add_cookies([
             {
                 "name": "over18",
@@ -204,6 +261,14 @@ class PageFetcher:
                 logger.warning(
                     f"HTTP {status} on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
                 )
+                # 403/503 = blocked by bot detection, usually IP-reputation tied.
+                # Retrying the same proxy IP just earns another block, so rotate
+                # to a fresh IP + UA/headers before the next attempt.
+                if status in (403, 503):
+                    try:
+                        await self._init_context()
+                    except Exception as reinit_err:
+                        logger.error(f"Failed to reinit context: {reinit_err}")
                 await asyncio.sleep(RETRY_BASE_DELAY)
                 continue
 
