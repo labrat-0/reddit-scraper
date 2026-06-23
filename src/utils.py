@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 from typing import Any
@@ -12,8 +13,10 @@ from playwright.async_api import Browser, async_playwright
 
 logger = logging.getLogger(__name__)
 
-# old.reddit.com serves parseable server-rendered HTML with data-* attributes.
-BASE_URL = "https://old.reddit.com"
+# www.reddit.com/<path>/.json returns standard Reddit Listing JSON. old.reddit
+# is now hard-blocked ("whoa there"); www serves JSON once the network-security
+# JS challenge is solved by a one-time warm-up visit to the site root.
+BASE_URL = "https://www.reddit.com"
 
 # Playwright page loads are heavier than raw HTTP — give more breathing room.
 REQUEST_INTERVAL = 1.5
@@ -116,6 +119,9 @@ class PageFetcher:
         self._browser: Browser | None = None
         self._context: Any = None
         self._proxy_settings: dict[str, Any] | None = None
+        # Whether the network-security challenge has been solved for the current
+        # context/IP. Reset on every context (re)init so a fresh IP re-warms.
+        self._warmed: bool = False
         # Cost-tracking: bytes of HTML returned + wall-clock start, read by the
         # main loop's circuit breaker to abort runaway runs.
         self.total_bytes: int = 0
@@ -138,6 +144,7 @@ class PageFetcher:
 
     async def _init_context(self) -> None:
         """Create (or recreate) the shared browser context."""
+        self._warmed = False
         if self._context:
             try:
                 await self._context.close()
@@ -187,13 +194,13 @@ class PageFetcher:
             {
                 "name": "over18",
                 "value": "1",
-                "domain": "old.reddit.com",
+                "domain": ".reddit.com",
                 "path": "/",
             },
             {
                 "name": "_options",
                 "value": '{%22pref_quarantine_optin%22:true}',
-                "domain": "old.reddit.com",
+                "domain": ".reddit.com",
                 "path": "/",
             },
         ])
@@ -312,6 +319,90 @@ class PageFetcher:
                         pass
             out.append(entry)
         return out
+
+    async def fetch_json(
+        self, url: str, params: dict[str, Any] | None = None
+    ) -> Any | None:
+        """Fetch a Reddit `.json` endpoint and return the parsed object, or None.
+
+        Solves the network-security challenge once per context (warm-up), then
+        navigates to the JSON URL and parses the raw response body. On a 403/503
+        (challenge re-armed or IP flagged) it rotates to a fresh proxy IP and
+        re-warms before retrying.
+        """
+        if params:
+            url = f"{url}?{urlencode(params)}"
+
+        for attempt in range(MAX_RETRIES):
+            await self.rate_limiter.wait()
+            if not self._warmed:
+                await self.warmup()
+                self._warmed = True
+
+            page = None
+            try:
+                page = await self._context.new_page()
+                response = await page.goto(
+                    url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
+                )
+                status = response.status if response else 0
+
+                if status == 200:
+                    body = await response.text()
+                    self.total_bytes += len(body)
+                    try:
+                        return json.loads(body)
+                    except json.JSONDecodeError:
+                        logger.warning(f"JSON parse failed on {url}")
+                        return None
+
+                if status == 404:
+                    logger.warning(f"Not found (404): {url}")
+                    return None
+
+                if status == 429:
+                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        f"Rate limited (429) on {url}. "
+                        f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
+                logger.warning(
+                    f"HTTP {status} on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
+                )
+                # 403/503 = challenge re-armed or IP flagged — rotate IP + re-warm.
+                if status in (403, 503):
+                    try:
+                        await self._init_context()
+                    except Exception as reinit_err:
+                        logger.error(f"Failed to reinit context: {reinit_err}")
+                await asyncio.sleep(RETRY_BASE_DELAY)
+                continue
+
+            except Exception as e:
+                delay = RETRY_BASE_DELAY * (attempt + 1)
+                logger.warning(
+                    f"Playwright error on {url}: {e}. "
+                    f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                )
+                try:
+                    await self._init_context()
+                except Exception as reinit_err:
+                    logger.error(f"Failed to reinit context: {reinit_err}")
+                await asyncio.sleep(delay)
+                continue
+
+            finally:
+                if page:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+
+        logger.error(f"All {MAX_RETRIES} retries exhausted for {url}")
+        return None
 
     async def fetch(
         self, url: str, params: dict[str, Any] | None = None

@@ -160,6 +160,14 @@ def _utc_from_ms(ts_ms: Any) -> str:
         return ""
 
 
+def _utc_from_sec(ts_sec: Any) -> str:
+    """Convert a second-precision epoch (Reddit's created_utc) to ISO 8601 UTC."""
+    try:
+        return datetime.fromtimestamp(float(ts_sec), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError):
+        return ""
+
+
 def _int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
@@ -173,6 +181,64 @@ def _leading_int(text: str, default: int = 0) -> int:
         return default
     m = re.search(r"-?\d[\d,]*", text)
     return int(m.group().replace(",", "")) if m else default
+
+
+def _thumbnail_url(value: Any) -> str:
+    """Reddit's `thumbnail` is a URL or a sentinel (self/default/nsfw/spoiler/'')."""
+    if isinstance(value, str) and value.startswith("http"):
+        return value
+    return ""
+
+
+def format_post_from_json(d: dict[str, Any]) -> dict[str, Any]:
+    """Format a post (t3) from a Reddit JSON `data` object.
+
+    Output keys match `format_post_from_thing` so the dataset schema is stable
+    across the HTML→JSON migration.
+    """
+    permalink = d.get("permalink", "")
+    is_self = bool(d.get("is_self"))
+    return {
+        "type": "post",
+        "id": d.get("id", ""),
+        "subreddit": d.get("subreddit", ""),
+        "title": d.get("title", ""),
+        "author": d.get("author", "[deleted]"),
+        "selftext": d.get("selftext", "") or "",
+        "url": f"https://www.reddit.com{permalink}" if permalink else "",
+        "externalUrl": "" if is_self else (d.get("url", "") or ""),
+        "score": _int(d.get("score")),
+        "numComments": _int(d.get("num_comments")),
+        "created": _utc_from_sec(d.get("created_utc")),
+        "isNSFW": bool(d.get("over_18")),
+        "isSpoiler": bool(d.get("spoiler")),
+        "isPinned": bool(d.get("stickied")),
+        "flair": d.get("link_flair_text") or "",
+        "awards": _int(d.get("total_awards_received")),
+        "domain": d.get("domain", ""),
+        "isVideo": bool(d.get("is_video")),
+        "thumbnail": _thumbnail_url(d.get("thumbnail")),
+        "isPromoted": False,
+    }
+
+
+def format_comment_from_json(d: dict[str, Any], depth: int = 0) -> dict[str, Any]:
+    """Format a comment (t1) from a Reddit JSON `data` object."""
+    permalink = d.get("permalink", "")
+    return {
+        "type": "comment",
+        "id": d.get("id", ""),
+        "postId": (d.get("link_id", "") or "").replace("t3_", ""),
+        "subreddit": d.get("subreddit", ""),
+        "author": d.get("author", "[deleted]"),
+        "body": d.get("body", "") or "[deleted]",
+        "score": _int(d.get("score")),
+        "created": _utc_from_sec(d.get("created_utc")),
+        "depth": _int(d.get("depth"), depth),
+        "isSubmitter": bool(d.get("is_submitter")),
+        "awards": _int(d.get("total_awards_received")),
+        "url": f"https://www.reddit.com{permalink}" if permalink else "",
+    }
 
 
 def format_post_from_thing(thing: Any) -> dict[str, Any]:

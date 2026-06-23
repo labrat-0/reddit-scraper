@@ -1,7 +1,7 @@
 """Core Reddit scraping logic. All 4 modes: subreddit_posts, search, user_profile, post_comments.
 
-Fetches old.reddit.com server-rendered HTML via Playwright (real Chromium browser),
-then parses `<div class="thing">` elements with BeautifulSoup.
+Fetches Reddit `.json` endpoints (www.reddit.com) via Playwright after a one-time
+network-security warm-up, then parses the standard Listing JSON.
 """
 
 from __future__ import annotations
@@ -9,14 +9,11 @@ from __future__ import annotations
 import logging
 from typing import Any, AsyncIterator
 
-from bs4 import BeautifulSoup
-
 from .models import (
     ScraperInput,
     ScrapingMode,
-    format_comment_from_thing,
-    format_post_from_search_result,
-    format_post_from_thing,
+    format_comment_from_json,
+    format_post_from_json,
 )
 from .utils import BASE_URL, PageFetcher, parse_post_url
 
@@ -28,7 +25,7 @@ EMPTY_PAGE_ABORT = 2
 
 
 class RedditScraper:
-    """Scrapes Reddit by parsing old.reddit.com HTML via a headless browser."""
+    """Scrapes Reddit by fetching www.reddit.com `.json` endpoints."""
 
     def __init__(
         self,
@@ -57,132 +54,72 @@ class RedditScraper:
             async for item in self._scrape_post_comments():
                 yield item
 
-    # --- HTML helpers ---
+    # --- JSON listing helpers ---
 
-    async def _get_soup(
-        self, url: str, params: dict[str, Any] | None = None
-    ) -> BeautifulSoup | None:
-        html = await self.fetcher.fetch(url, params)
-        if not html:
+    @staticmethod
+    def _children(listing: Any) -> list[dict[str, Any]]:
+        """Return the children array from a Listing object, or []."""
+        if not isinstance(listing, dict):
+            return []
+        return listing.get("data", {}).get("children", []) or []
+
+    @staticmethod
+    def _after(listing: Any) -> str | None:
+        """Return the pagination cursor (data.after) from a Listing, or None."""
+        if not isinstance(listing, dict):
             return None
-        return BeautifulSoup(html, "lxml")
+        return listing.get("data", {}).get("after")
 
-    @staticmethod
-    def _post_things(soup: BeautifulSoup) -> list[Any]:
-        """Return non-promoted link `thing` elements from a listing page."""
-        things = []
-        for thing in soup.select('div.thing[data-fullname^="t3_"]'):
-            if thing.get("data-promoted") == "true":
-                continue
-            things.append(thing)
-        return things
+    async def _paginate_listing(
+        self,
+        url: str,
+        params: dict[str, Any],
+        kinds: tuple[str, ...] = ("t3",),
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield formatted items across a paginated Listing endpoint.
 
-    @staticmethod
-    def _next_url(soup: BeautifulSoup) -> str | None:
-        """Return the 'next page' URL from a listing's pagination, if any."""
-        next_link = soup.select_one(".next-button a")
-        if next_link and next_link.get("href"):
-            return next_link["href"]
-        return None
-
-    @staticmethod
-    def _search_things(soup: BeautifulSoup) -> list[Any]:
-        """Return link search-result elements from a search page."""
-        return soup.select('div.search-result-link[data-fullname^="t3_"]')
-
-    @staticmethod
-    def _next_search_url(soup: BeautifulSoup) -> str | None:
-        """Return the 'next page' URL for search results.
-
-        Search pages render two paginators (subreddit matches via `type=sr`, and link
-        results via `after=t3_`). Prefer the link-results one.
+        `kinds` selects which child kinds to emit: t3 (posts), t1 (comments).
+        Pagination follows the `after` cursor until exhausted or max_pages.
         """
-        next_links = soup.select('.nextprev a[rel~="next"]')
-        for link in next_links:
-            href = link.get("href", "")
-            if "after=t3_" in href:
-                return href
-        if next_links and next_links[0].get("href"):
-            return next_links[0]["href"]
-        return None
-
-    async def _paginate_search(
-        self, url: str, params: dict[str, Any]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Yield formatted posts across paginated search-result pages."""
         page = 0
         empty_streak = 0
-        current_url = url
-        current_params: dict[str, Any] | None = params
+        after: str | None = None
 
         while True:
-            soup = await self._get_soup(current_url, current_params)
-            if soup is None:
-                break
+            p = dict(params)
+            if after:
+                p["after"] = after
 
-            results = self._search_things(soup)
-            if not results:
+            listing = await self.fetcher.fetch_json(url, p)
+            children = self._children(listing)
+
+            if not children:
                 empty_streak += 1
-                logger.warning(f"No posts found on {current_url} (empty streak: {empty_streak})")
-                if empty_streak >= EMPTY_PAGE_ABORT:
-                    logger.warning("Consecutive empty pages — aborting search pagination")
+                logger.warning(
+                    f"No items on {url} (after={after}, empty streak: {empty_streak})"
+                )
+                next_after = self._after(listing)
+                if empty_streak >= EMPTY_PAGE_ABORT or not next_after:
                     break
+                after = next_after
                 continue
             empty_streak = 0
 
-            for result in results:
-                yield format_post_from_search_result(result)
+            for child in children:
+                kind = child.get("kind")
+                data = child.get("data", {})
+                if kind == "t3" and "t3" in kinds:
+                    yield format_post_from_json(data)
+                elif kind == "t1" and "t1" in kinds:
+                    yield format_comment_from_json(data)
 
-            next_url = self._next_search_url(soup)
-            if not next_url:
+            after = self._after(listing)
+            if not after:
                 break
-
             page += 1
             if page >= self.max_pages:
                 logger.info("Reached pagination limit")
                 break
-
-            current_url = next_url
-            current_params = None
-
-    async def _paginate_posts(
-        self, url: str, params: dict[str, Any]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Yield formatted posts across paginated listing pages."""
-        page = 0
-        empty_streak = 0
-        current_url = url
-        current_params: dict[str, Any] | None = params
-
-        while True:
-            soup = await self._get_soup(current_url, current_params)
-            if soup is None:
-                break
-
-            things = self._post_things(soup)
-            if not things:
-                empty_streak += 1
-                logger.warning(f"No posts found on {current_url} (empty streak: {empty_streak})")
-                if empty_streak >= EMPTY_PAGE_ABORT:
-                    logger.warning("Consecutive empty pages — aborting post pagination")
-                    break
-                continue
-            empty_streak = 0
-
-            for thing in things:
-                yield format_post_from_thing(thing)
-
-            next_url = self._next_url(soup)
-            if not next_url:
-                break
-
-            page += 1
-            if page >= self.max_pages:
-                logger.info("Reached pagination limit")
-                break
-
-            current_url = next_url
-            current_params = None
 
     # --- Mode 1: Subreddit Posts ---
 
@@ -191,12 +128,12 @@ class RedditScraper:
             sort = self.config.sort.value
             logger.info(f"Scraping r/{subreddit} ({sort})")
 
-            url = f"{BASE_URL}/r/{subreddit}/{sort}/"
-            params: dict[str, Any] = {"limit": 25}
+            url = f"{BASE_URL}/r/{subreddit}/{sort}/.json"
+            params: dict[str, Any] = {"limit": 25, "raw_json": 1}
             if sort == "top":
                 params["t"] = self.config.time_filter.value
 
-            async for post in self._paginate_posts(url, params):
+            async for post in self._paginate_listing(url, params, kinds=("t3",)):
                 yield post
                 if self.config.include_comments:
                     async for comment in self._fetch_comments_for_post(post["id"]):
@@ -212,25 +149,27 @@ class RedditScraper:
             logger.info(f"Searching Reddit for: '{query}'")
 
             if self.config.search_subreddit:
-                url = f"{BASE_URL}/r/{self.config.search_subreddit}/search/"
+                url = f"{BASE_URL}/r/{self.config.search_subreddit}/search/.json"
                 params: dict[str, Any] = {
                     "q": query,
                     "restrict_sr": "on",
                     "sort": self.config.search_sort.value,
                     "limit": 25,
+                    "raw_json": 1,
                 }
             else:
-                url = f"{BASE_URL}/search/"
+                url = f"{BASE_URL}/search/.json"
                 params = {
                     "q": query,
                     "sort": self.config.search_sort.value,
                     "limit": 25,
+                    "raw_json": 1,
                 }
 
             if self.config.search_sort.value == "top":
                 params["t"] = self.config.time_filter.value
 
-            async for post in self._paginate_search(url, params):
+            async for post in self._paginate_listing(url, params, kinds=("t3",)):
                 post_id = post["id"]
                 if post_id in seen_ids:
                     continue
@@ -249,49 +188,18 @@ class RedditScraper:
             logger.info(f"Scraping u/{username} ({content_type})")
 
             if content_type == "submitted":
-                url = f"{BASE_URL}/user/{username}/submitted/"
+                url = f"{BASE_URL}/user/{username}/submitted/.json"
+                kinds: tuple[str, ...] = ("t3",)
             elif content_type == "comments":
-                url = f"{BASE_URL}/user/{username}/comments/"
+                url = f"{BASE_URL}/user/{username}/comments/.json"
+                kinds = ("t1",)
             else:  # overview
-                url = f"{BASE_URL}/user/{username}/"
+                url = f"{BASE_URL}/user/{username}/.json"
+                kinds = ("t3", "t1")
 
-            params: dict[str, Any] = {"limit": 25}
-            page = 0
-            empty_streak = 0
-            current_url = url
-            current_params: dict[str, Any] | None = params
-
-            while True:
-                soup = await self._get_soup(current_url, current_params)
-                if soup is None:
-                    break
-
-                things = soup.select("div.thing[data-fullname]")
-                if not things:
-                    empty_streak += 1
-                    if empty_streak >= EMPTY_PAGE_ABORT:
-                        logger.warning("Consecutive empty pages — aborting user pagination")
-                        break
-                    continue
-                empty_streak = 0
-
-                for thing in things:
-                    fullname = thing.get("data-fullname", "")
-                    if fullname.startswith("t3_"):
-                        if thing.get("data-promoted") == "true":
-                            continue
-                        yield format_post_from_thing(thing)
-                    elif fullname.startswith("t1_"):
-                        yield format_comment_from_thing(thing)
-
-                next_url = self._next_url(soup)
-                if not next_url:
-                    break
-                page += 1
-                if page >= self.max_pages:
-                    break
-                current_url = next_url
-                current_params = None
+            params: dict[str, Any] = {"limit": 25, "raw_json": 1}
+            async for item in self._paginate_listing(url, params, kinds=kinds):
+                yield item
 
     # --- Mode 4: Post Comments ---
 
@@ -305,17 +213,21 @@ class RedditScraper:
             subreddit, post_id = parsed
             logger.info(f"Scraping comments from r/{subreddit} post {post_id}")
 
-            url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}/"
-            soup = await self._get_soup(url, {"limit": 500})
-            if soup is None:
+            url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}/.json"
+            data = await self.fetcher.fetch_json(url, {"limit": 500, "raw_json": 1})
+            if not data:
                 logger.warning(f"No data returned for post {post_id}")
                 continue
 
-            post_thing = soup.select_one('div.thing[data-fullname^="t3_"]')
-            if post_thing is not None:
-                yield format_post_from_thing(post_thing)
+            # Comment endpoints return [post_listing, comments_listing].
+            post_children = self._children(data[0]) if isinstance(data, list) and data else []
+            if post_children:
+                yield format_post_from_json(post_children[0].get("data", {}))
 
-            for comment in self._parse_comments(soup):
+            comment_listing = data[1] if isinstance(data, list) and len(data) > 1 else None
+            results: list[dict[str, Any]] = []
+            self._flatten_comments(self._children(comment_listing), 0, results)
+            for comment in results:
                 yield comment
 
     # --- Helpers ---
@@ -325,22 +237,33 @@ class RedditScraper:
     ) -> AsyncIterator[dict[str, Any]]:
         if not post_id:
             return
-        url = f"{BASE_URL}/comments/{post_id}/"
-        soup = await self._get_soup(url, {"limit": 500})
-        if soup is None:
+        url = f"{BASE_URL}/comments/{post_id}/.json"
+        data = await self.fetcher.fetch_json(url, {"limit": 500, "raw_json": 1})
+        if not data or not isinstance(data, list) or len(data) < 2:
             return
-        for comment in self._parse_comments(soup):
+        results: list[dict[str, Any]] = []
+        self._flatten_comments(self._children(data[1]), 0, results)
+        for comment in results:
             yield comment
 
-    def _parse_comments(self, soup: BeautifulSoup) -> list[dict[str, Any]]:
-        """Parse all comment things from a post page into a flat list."""
-        results: list[dict[str, Any]] = []
+    def _flatten_comments(
+        self,
+        children: list[dict[str, Any]],
+        depth: int,
+        results: list[dict[str, Any]],
+    ) -> None:
+        """Depth-first flatten a comment tree into `results`, honoring the cap."""
         max_comments = self.config.max_comments_per_post
-
-        for thing in soup.select('div.thing[data-fullname^="t1_"]'):
-            depth = len(thing.find_parents("div", class_="child"))
-            results.append(format_comment_from_thing(thing, depth=depth))
+        for child in children:
+            if child.get("kind") != "t1":  # skip "more" placeholders
+                continue
+            data = child.get("data", {})
+            results.append(format_comment_from_json(data, depth=depth))
             if max_comments > 0 and len(results) >= max_comments:
-                break
+                return
 
-        return results
+            replies = data.get("replies")
+            if isinstance(replies, dict):
+                self._flatten_comments(self._children(replies), depth + 1, results)
+                if max_comments > 0 and len(results) >= max_comments:
+                    return
