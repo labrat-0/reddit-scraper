@@ -62,7 +62,8 @@ async def main() -> None:
                 for r in await probe_fetcher.probe(probe_urls):
                     Actor.log.info(
                         f"PROBE status={r['status']} listing={r['listing']} "
-                        f"blocked={r['blocked']} len={r['len']} :: {r['url']}"
+                        f"blocked={r['blocked']} len={r['len']} "
+                        f"head=[{r['head']}] :: {r['url']}"
                     )
             await Actor.set_status_message("Diagnostic probe complete — see log.")
             return

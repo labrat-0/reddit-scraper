@@ -230,8 +230,8 @@ class PageFetcher:
         for url in urls:
             await self.rate_limiter.wait()
             page = None
-            entry: dict[str, Any] = {"url": url, "status": 0,
-                                     "listing": False, "blocked": False, "len": 0}
+            entry: dict[str, Any] = {"url": url, "status": 0, "listing": False,
+                                     "blocked": False, "len": 0, "head": ""}
             try:
                 page = await self._context.new_page()
                 resp = await page.goto(
@@ -242,6 +242,14 @@ class PageFetcher:
                 entry["len"] = len(body)
                 entry["listing"] = '"kind": "Listing"' in body or '"kind":"Listing"' in body
                 entry["blocked"] = "<title>Blocked</title>" in body
+                # Markers that tell us what the body actually is.
+                lower = body.lower()
+                marks = []
+                for needle in ('network security', 'shreddit', '__r', 'whoa there',
+                               'cloudflare', 'challenge', '"kind"', '<!doctype html'):
+                    if needle in lower:
+                        marks.append(needle)
+                entry["head"] = "|".join(marks) or " ".join(body.split())[:160]
             except Exception as e:  # noqa: BLE001 - diagnostic, log and continue
                 entry["status"] = -1
                 logger.warning(f"probe error on {url}: {e}")
