@@ -53,10 +53,10 @@ async def main() -> None:
                 actor_proxy_input=probe_proxy_input
             )
             probe_urls = [
-                "https://old.reddit.com/r/python/hot/.json?limit=5",
                 "https://www.reddit.com/r/python/hot/.json?limit=5",
+                "https://www.reddit.com/r/python/hot/",
+                "https://old.reddit.com/r/python/hot/.json?limit=5",
                 "https://old.reddit.com/r/python/hot/?limit=5",
-                "https://old.reddit.com/.json?limit=5",
             ]
             async with PageFetcher(RateLimiter(), probe_proxy) as probe_fetcher:
                 for r in await probe_fetcher.probe(probe_urls):

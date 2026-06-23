@@ -221,11 +221,59 @@ class PageFetcher:
         if self._playwright:
             await self._playwright.stop()
 
+    async def warmup(self) -> int:
+        """Visit the reddit.com root cold so the network-security JS challenge
+        can run and drop its clearance cookie into the shared context. Returns
+        the number of cookies the context holds afterward (a jump means the
+        challenge set something). Best-effort — never raises."""
+        page = None
+        try:
+            page = await self._context.new_page()
+            await page.goto(
+                "https://www.reddit.com/",
+                wait_until="domcontentloaded",
+                timeout=NAV_TIMEOUT_MS,
+            )
+            # Give the challenge JS time to execute, post its token, reload, and
+            # set the clearance cookie. These solvers typically take a few sec.
+            await page.wait_for_timeout(6000)
+            try:
+                await page.reload(wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+                await page.wait_for_timeout(3000)
+            except Exception:
+                pass
+            cookies = await self._context.cookies()
+            return len(cookies)
+        except Exception as e:  # noqa: BLE001 - diagnostic
+            logger.warning(f"warmup error: {e}")
+            return -1
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
+    def _classify(self, body: str) -> dict[str, Any]:
+        lower = body.lower()
+        marks = [n for n in (
+            'network security', 'shreddit', '__r', 'whoa there',
+            'cloudflare', 'challenge', '"kind"', '<!doctype html',
+        ) if n in lower]
+        return {
+            "len": len(body),
+            "listing": '"kind": "Listing"' in body or '"kind":"Listing"' in body,
+            "blocked": "<title>Blocked</title>" in body,
+            "head": "|".join(marks) or " ".join(body.split())[:160],
+        }
+
     async def probe(self, urls: list[str]) -> list[dict[str, Any]]:
-        """Diagnostic: GET each URL once through the proxy and report what came
-        back (status, whether it's a Reddit JSON Listing, whether it's the
-        app-level "Blocked" page). Used to decide HTML-vs-.json path on the live
-        residential proxy without committing to a parser rewrite first."""
+        """Diagnostic: warm up (solve challenge), then GET each URL and report
+        what came back. If a target still shows the network-security wall, wait
+        and reload once — these challenges often clear on the second pass."""
+        warm_cookies = await self.warmup()
+        logger.info(f"warmup complete — context holds {warm_cookies} cookies")
+
         out: list[dict[str, Any]] = []
         for url in urls:
             await self.rate_limiter.wait()
@@ -239,17 +287,20 @@ class PageFetcher:
                 )
                 entry["status"] = resp.status if resp else 0
                 body = await page.content()
-                entry["len"] = len(body)
-                entry["listing"] = '"kind": "Listing"' in body or '"kind":"Listing"' in body
-                entry["blocked"] = "<title>Blocked</title>" in body
-                # Markers that tell us what the body actually is.
-                lower = body.lower()
-                marks = []
-                for needle in ('network security', 'shreddit', '__r', 'whoa there',
-                               'cloudflare', 'challenge', '"kind"', '<!doctype html'):
-                    if needle in lower:
-                        marks.append(needle)
-                entry["head"] = "|".join(marks) or " ".join(body.split())[:160]
+                cls = self._classify(body)
+                # Still challenged? wait for the solver, reload once, re-read.
+                if "network security" in cls["head"] or "challenge" in cls["head"]:
+                    await page.wait_for_timeout(6000)
+                    try:
+                        resp = await page.reload(
+                            wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
+                        )
+                        entry["status"] = resp.status if resp else entry["status"]
+                        body = await page.content()
+                        cls = self._classify(body)
+                    except Exception:
+                        pass
+                entry.update(cls)
             except Exception as e:  # noqa: BLE001 - diagnostic, log and continue
                 entry["status"] = -1
                 logger.warning(f"probe error on {url}: {e}")
