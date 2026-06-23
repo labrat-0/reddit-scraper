@@ -90,6 +90,25 @@ async def main() -> None:
         cost_exceeded = False
 
         async with PageFetcher(rate_limiter, proxy_config) as fetcher:
+            # Diagnostic mode: probe which endpoints survive on the live
+            # residential proxy (HTML listing vs .json), log, and exit. Set
+            # {"diagnose": true} in the actor input to trigger. Cheap: a few
+            # tiny requests, no scraping. Remove once the path is settled.
+            if raw_input.get("diagnose"):
+                probe_urls = [
+                    "https://old.reddit.com/r/python/hot/.json?limit=5",
+                    "https://www.reddit.com/r/python/hot/.json?limit=5",
+                    "https://old.reddit.com/r/python/hot/?limit=5",
+                    "https://old.reddit.com/.json?limit=5",
+                ]
+                for r in await fetcher.probe(probe_urls):
+                    Actor.log.info(
+                        f"PROBE status={r['status']} listing={r['listing']} "
+                        f"blocked={r['blocked']} len={r['len']} :: {r['url']}"
+                    )
+                await Actor.set_status_message("Diagnostic probe complete — see log.")
+                return
+
             scraper = RedditScraper(fetcher, config, max_pages=max_pages)
 
             try:

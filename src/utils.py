@@ -221,6 +221,39 @@ class PageFetcher:
         if self._playwright:
             await self._playwright.stop()
 
+    async def probe(self, urls: list[str]) -> list[dict[str, Any]]:
+        """Diagnostic: GET each URL once through the proxy and report what came
+        back (status, whether it's a Reddit JSON Listing, whether it's the
+        app-level "Blocked" page). Used to decide HTML-vs-.json path on the live
+        residential proxy without committing to a parser rewrite first."""
+        out: list[dict[str, Any]] = []
+        for url in urls:
+            await self.rate_limiter.wait()
+            page = None
+            entry: dict[str, Any] = {"url": url, "status": 0,
+                                     "listing": False, "blocked": False, "len": 0}
+            try:
+                page = await self._context.new_page()
+                resp = await page.goto(
+                    url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
+                )
+                entry["status"] = resp.status if resp else 0
+                body = await page.content()
+                entry["len"] = len(body)
+                entry["listing"] = '"kind": "Listing"' in body or '"kind":"Listing"' in body
+                entry["blocked"] = "<title>Blocked</title>" in body
+            except Exception as e:  # noqa: BLE001 - diagnostic, log and continue
+                entry["status"] = -1
+                logger.warning(f"probe error on {url}: {e}")
+            finally:
+                if page:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+            out.append(entry)
+        return out
+
     async def fetch(
         self, url: str, params: dict[str, Any] | None = None
     ) -> str | None:
