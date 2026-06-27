@@ -131,6 +131,54 @@
                 "nullable": true,
                 "example": false
             },
+            "upvoteRatio": {
+                "type": "number",
+                "description": "Upvote ratio (0.0–1.0), community consensus signal (posts only)",
+                "nullable": true,
+                "example": 0.89
+            },
+            "edited": {
+                "type": ["number", "boolean"],
+                "description": "Unix timestamp of last edit, or false if never edited (posts and comments)",
+                "nullable": true,
+                "example": 1740850000
+            },
+            "postHint": {
+                "type": "string",
+                "description": "Reddit's type hint for the post: link, self, image, video, rich:video (posts only)",
+                "nullable": true,
+                "example": "link"
+            },
+            "isOriginalContent": {
+                "type": "boolean",
+                "description": "Whether the post is marked as original content/OC (posts only)",
+                "nullable": true,
+                "example": true
+            },
+            "authorFlair": {
+                "type": "string",
+                "description": "Author's subreddit flair text (posts only)",
+                "nullable": true,
+                "example": "Expert"
+            },
+            "crosspostParent": {
+                "type": "string",
+                "description": "If this is a crosspost, the parent post ID (t3_xxx) (posts only)",
+                "nullable": true,
+                "example": "t3_xyz789"
+            },
+            "mediaOnly": {
+                "type": "boolean",
+                "description": "Whether the post is media-only with no text content (posts only)",
+                "nullable": true,
+                "example": false
+            },
+            "isGallery": {
+                "type": "boolean",
+                "description": "Whether the post contains a Reddit gallery (posts only)",
+                "nullable": true,
+                "example": false
+            },
             "postId": {
                 "type": "string",
                 "description": "ID of the parent post this comment belongs to (comments only)",

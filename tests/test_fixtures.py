@@ -51,6 +51,32 @@ class TestPostFormatting:
         post = format_post_from_json(data)
         assert post["author"] == "[deleted]"
 
+    def test_format_post_new_fields(self):
+        data = load_fixture("sample_post.json")
+        data["upvote_ratio"] = 0.89
+        data["edited"] = 1740850000
+        data["post_hint"] = "link"
+        data["is_original_content"] = True
+        data["author_flair_text"] = "Expert"
+        data["crosspost_parent"] = "t3_xyz789"
+        data["media_only"] = False
+        data["is_gallery"] = False
+        post = format_post_from_json(data)
+        assert post["upvoteRatio"] == 0.89
+        assert post["edited"] == 1740850000
+        assert post["postHint"] == "link"
+        assert post["isOriginalContent"] is True
+        assert post["authorFlair"] == "Expert"
+        assert post["crosspostParent"] == "t3_xyz789"
+        assert post["mediaOnly"] is False
+        assert post["isGallery"] is False
+
+    def test_format_post_edited_false_when_missing(self):
+        data = load_fixture("sample_post.json")
+        data["edited"] = False
+        post = format_post_from_json(data)
+        assert post["edited"] is False
+
     def test_format_post_thumbnail_filtering(self):
         data = load_fixture("sample_post.json")
         # Sentinels should become empty string

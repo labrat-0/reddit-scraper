@@ -128,7 +128,8 @@ Once configured, your AI agent can call `reddit-scraper` as a tool to search any
 - **Search scope:** across all of Reddit or restricted to a single subreddit
 - **User profiles:** posts only, comments only, or both
 - **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
-- **Browser-grade requests:** Chrome TLS impersonation (`curl_cffi`) + rotating residential IPs to avoid blocks
+- **Browser-grade requests:** Playwright with Chrome TLS impersonation + rotating residential IPs to avoid blocks
+- **28 output fields per post** — including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
 - **Retry logic:** exponential backoff on 429, IP rotation on 403
 - **Fail-fast health check:** a run that scrapes 0 results fails loudly instead of silently billing compute
 - **State persistence:** survives Apify actor migrations mid-run
@@ -284,6 +285,14 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 | `isVideo` | boolean | Video post flag |
 | `thumbnail` | string | Thumbnail URL (empty for self/text posts) |
 | `isPromoted` | boolean | Whether the post is a promoted ad |
+| `upvoteRatio` | number | Upvote ratio (0–1), community consensus signal |
+| `edited` | timestamp/false | Unix timestamp of last edit, or `false` if never edited |
+| `postHint` | string | Post type hint: `link`, `self`, `image`, `video`, `rich:video` |
+| `isOriginalContent` | boolean | Original content (OC) flag |
+| `authorFlair` | string | Author's subreddit flair text |
+| `crosspostParent` | string | Parent post ID if crosspost (`t3_xxx`) |
+| `mediaOnly` | boolean | Media-only post with no text body |
+| `isGallery` | boolean | Reddit gallery post |
 
 ### Comment fields
 
@@ -301,6 +310,7 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 | `isSubmitter` | boolean | Whether author is the post's OP |
 | `awards` | integer | Award (gilding) count |
 | `url` | string | Reddit permalink |
+| `edited` | timestamp/false | Unix timestamp of last edit, or `false` if never edited |
 
 ### Example output
 
@@ -325,7 +335,13 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
     "domain": "self.Python",
     "isVideo": false,
     "thumbnail": "",
-    "isPromoted": false
+    "isPromoted": false,
+    "upvoteRatio": 0.89,
+    "postHint": "self",
+    "isOriginalContent": true,
+    "authorFlair": "Expert",
+    "mediaOnly": false,
+    "isGallery": false
 }
 ```
 
@@ -397,8 +413,7 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 
 - Reddit caps listing pagination at roughly 1,000 items per subreddit/user endpoint
 - `"Load more comments"` nodes in deep comment trees are not expanded — only the initially loaded tree (up to 500 comments/post) is extracted
-- Datacenter proxies will not work — Reddit has blocked nearly all datacenter IP ranges. Residential proxies are required.
-- `upvoteRatio` is not available from Reddit's HTML and is therefore not included in output
+
 
 ---
 
@@ -423,6 +438,23 @@ Yes. Call the actor via the Apify REST API and poll for results, or use the Apif
 ### What happens if a subreddit, user, or post URL doesn't exist?
 
 The scraper logs a warning and skips the invalid target. All remaining valid targets in the same run continue as normal.
+
+
+
+## Why This Scraper vs Alternatives
+
+| Feature | Reddit Scraper (labrat011) | trudax/reddit-scraper | trudax/reddit-scraper-lite | harshmaur/reddit-scraper |
+|---|---|---|---|---|
+| **Price per 1k** | **$1.20** | ~$4 + $45/mo sub | $3.40 | $1.50–2.00 |
+| **Rating** | **4.7** ⭐ | 2.4 ⚠️ | 4.6 | 5.0 |
+| **Runs** | 1.9K | 14K | 30K | 5.5K |
+| **Works after May '26 .json die-off** | ✅ Playwright warm-up | ❌ Not updated | ❌ Not updated | ❌ Not updated |
+| **Need Reddit API key / OAuth** | **No** | No | No | No |
+| **Residential proxies** | ✅ Required | Required | Required | Required |
+| **Batch search (multi-query)** | ✅ Yes | — | — | — |
+| **Free tier** | ✅ 25 results/run | ❌ | ❌ | ✅ Limited |
+
+**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges — competitors that still depend on the old `.json` endpoints now return 403s. At $1.20/1k, it's the cheapest working Reddit scraper on the Store.
 
 ---
 

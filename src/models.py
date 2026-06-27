@@ -150,14 +150,6 @@ class ScraperInput(BaseModel):
 # --- Output Formatters ---
 
 
-def _utc_from_ms(ts_ms: Any) -> str:
-    """Convert a millisecond timestamp string/int to ISO 8601 UTC string."""
-    try:
-        return datetime.fromtimestamp(int(ts_ms) / 1000, tz=timezone.utc).isoformat()
-    except (TypeError, ValueError):
-        return ""
-
-
 def _utc_from_sec(ts_sec: Any) -> str:
     """Convert a second-precision epoch (Reddit's created_utc) to ISO 8601 UTC."""
     try:
@@ -209,6 +201,14 @@ def format_post_from_json(d: dict[str, Any]) -> dict[str, Any]:
         "isVideo": bool(d.get("is_video")),
         "thumbnail": _thumbnail_url(d.get("thumbnail")),
         "isPromoted": False,
+        "upvoteRatio": d.get("upvote_ratio"),
+        "edited": d.get("edited") if isinstance(d.get("edited"), (int, float)) else False,
+        "postHint": d.get("post_hint") or "",
+        "isOriginalContent": bool(d.get("is_original_content")),
+        "authorFlair": d.get("author_flair_text") or "",
+        "crosspostParent": d.get("crosspost_parent") or "",
+        "mediaOnly": bool(d.get("media_only")),
+        "isGallery": bool(d.get("is_gallery")),
     }
 
 
@@ -228,4 +228,5 @@ def format_comment_from_json(d: dict[str, Any], depth: int = 0) -> dict[str, Any
         "isSubmitter": bool(d.get("is_submitter")),
         "awards": _int(d.get("total_awards_received")),
         "url": f"https://www.reddit.com{permalink}" if permalink else "",
+        "edited": d.get("edited") if isinstance(d.get("edited"), (int, float)) else False,
     }
