@@ -20,7 +20,7 @@ FREE_TIER_LIMIT = 25
 # exceeds the gross revenue it has earned so far (with a small floor). This kills
 # wedged/timeout runs (e.g. the May 30 2026 case: minutes of burn for ~no output)
 # WITHOUT truncating large efficient runs, whose budget scales with result count.
-GROSS_PER_RESULT_USD = 0.0012  # charged price after June 16 2026: $1.20 / 1,000
+GROSS_PER_RESULT_USD = 0.0015  # charged price effective after Jul 11 2026: $1.50 / 1,000
 MIN_COST_ALLOWANCE_USD = 0.05  # headroom before the breaker can ever trip
 CU_RATE_USD_PER_HR = 0.20  # Starter tier: $0.20 per compute-unit-hour (1GB·1hr)
 RESIDENTIAL_USD_PER_GB = 8.0

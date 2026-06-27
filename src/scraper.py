@@ -19,7 +19,7 @@ from .utils import BASE_URL, PageFetcher, parse_post_url
 
 logger = logging.getLogger(__name__)
 
-MAX_PAGES = 40
+MAX_PAGES = 400
 MAX_PAGES_FREE = 1
 EMPTY_PAGE_ABORT = 2
 

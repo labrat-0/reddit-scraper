@@ -1,0 +1,21 @@
+{
+  "id": "abc123",
+  "subreddit": "Python",
+  "title": "After 25 years using ORMs, I switched to raw SQL",
+  "author": "example_user",
+  "selftext": "Here's what I learned after making the switch...",
+  "permalink": "/r/Python/comments/abc123/after_25_years_using_orms_i_switched_to_raw/",
+  "url": "https://example.com/article",
+  "is_self": false,
+  "score": 1842,
+  "num_comments": 312,
+  "created_utc": 1740849262,
+  "over_18": false,
+  "spoiler": false,
+  "stickied": false,
+  "link_flair_text": "Discussion",
+  "total_awards_received": 5,
+  "domain": "example.com",
+  "is_video": false,
+  "thumbnail": "https://b.thumbs.redditmedia.com/abc123.jpg"
+}

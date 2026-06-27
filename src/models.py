@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
-from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -175,14 +173,6 @@ def _int(value: Any, default: int = 0) -> int:
         return default
 
 
-def _leading_int(text: str, default: int = 0) -> int:
-    """Extract the first integer from a string like '3 points' or '51 comments'."""
-    if not text:
-        return default
-    m = re.search(r"-?\d[\d,]*", text)
-    return int(m.group().replace(",", "")) if m else default
-
-
 def _thumbnail_url(value: Any) -> str:
     """Reddit's `thumbnail` is a URL or a sentinel (self/default/nsfw/spoiler/'')."""
     if isinstance(value, str) and value.startswith("http"):
@@ -193,7 +183,7 @@ def _thumbnail_url(value: Any) -> str:
 def format_post_from_json(d: dict[str, Any]) -> dict[str, Any]:
     """Format a post (t3) from a Reddit JSON `data` object.
 
-    Output keys match `format_post_from_thing` so the dataset schema is stable
+    Output keys match the post schema, keeping the dataset schema stable
     across the HTML→JSON migration.
     """
     permalink = d.get("permalink", "")
@@ -238,187 +228,4 @@ def format_comment_from_json(d: dict[str, Any], depth: int = 0) -> dict[str, Any
         "isSubmitter": bool(d.get("is_submitter")),
         "awards": _int(d.get("total_awards_received")),
         "url": f"https://www.reddit.com{permalink}" if permalink else "",
-    }
-
-
-def format_post_from_thing(thing: Any) -> dict[str, Any]:
-    """Format a post from an old.reddit `<div class="thing">` BeautifulSoup tag."""
-    attrs = thing.attrs
-    classes = attrs.get("class", [])
-    fullname = attrs.get("data-fullname", "")
-    post_id = fullname.replace("t3_", "")
-    permalink = attrs.get("data-permalink", "")
-    domain = attrs.get("data-domain", "")
-    is_self = domain.startswith("self.")
-
-    title_el = thing.select_one("a.title")
-    title = title_el.get_text(strip=True) if title_el else ""
-
-    selftext_el = thing.select_one(".expando .usertext-body")
-    selftext = selftext_el.get_text("\n", strip=True) if selftext_el else ""
-
-    flair_el = thing.select_one(".linkflairlabel")
-    flair = flair_el.get_text(strip=True) if flair_el else ""
-
-    thumb_img = thing.select_one("a.thumbnail img")
-    thumbnail = ""
-    if thumb_img and thumb_img.get("src"):
-        src = thumb_img["src"]
-        thumbnail = f"https:{src}" if src.startswith("//") else src
-
-    is_video = domain in ("v.redd.it", "youtube.com", "youtu.be") or (
-        attrs.get("data-url", "").endswith((".mp4", ".gifv"))
-    )
-
-    return {
-        "type": "post",
-        "id": post_id,
-        "subreddit": attrs.get("data-subreddit", ""),
-        "title": title,
-        "author": attrs.get("data-author", "[deleted]"),
-        "selftext": selftext,
-        "url": f"https://www.reddit.com{permalink}",
-        "externalUrl": "" if is_self else attrs.get("data-url", ""),
-        "score": _int(attrs.get("data-score")),
-        "numComments": _int(attrs.get("data-comments-count")),
-        "created": _utc_from_ms(attrs.get("data-timestamp")),
-        "isNSFW": attrs.get("data-nsfw") == "true",
-        "isSpoiler": attrs.get("data-spoiler") == "true",
-        "isPinned": "stickied" in classes,
-        "flair": flair,
-        "awards": _int(attrs.get("data-gildings")),
-        "domain": domain,
-        "isVideo": is_video,
-        "thumbnail": thumbnail,
-        "isPromoted": attrs.get("data-promoted") == "true",
-    }
-
-
-def format_post_from_search_result(result: Any) -> dict[str, Any]:
-    """Format a post from an old.reddit `div.search-result-link` BeautifulSoup tag.
-
-    Search pages use a different markup than listings: data lives in child elements
-    (`.search-score`, `a.search-comments`, ...) rather than `data-*` attributes.
-    Output keys match `format_post_from_thing` so the dataset schema stays consistent.
-    """
-    fullname = result.attrs.get("data-fullname", "")
-    post_id = fullname.replace("t3_", "")
-
-    title_el = result.select_one("a.search-title")
-    title = title_el.get_text(strip=True) if title_el else ""
-    title_href = title_el.get("href", "") if title_el else ""
-
-    comments_el = result.select_one("a.search-comments")
-    num_comments = _leading_int(comments_el.get_text()) if comments_el else 0
-
-    # Permalink: search-comments href is always the /comments/ URL; fall back to thumbnail.
-    permalink = ""
-    for candidate in (
-        comments_el.get("href") if comments_el else "",
-        (result.select_one("a.thumbnail") or {}).get("href")
-        if result.select_one("a.thumbnail")
-        else "",
-    ):
-        if candidate and "/comments/" in candidate:
-            permalink = urlparse(candidate).path or candidate
-            break
-
-    sub_el = result.select_one("a.search-subreddit-link")
-    subreddit = sub_el.get_text(strip=True) if sub_el else ""
-    if subreddit.lower().startswith("r/"):
-        subreddit = subreddit[2:]
-    if not subreddit:
-        parts = [p for p in permalink.split("/") if p]
-        if len(parts) >= 2 and parts[0] == "r":
-            subreddit = parts[1]
-
-    author_el = result.select_one(".search-author a.author")
-    author = author_el.get_text(strip=True) if author_el else "[deleted]"
-
-    score_el = result.select_one(".search-score")
-    score = _leading_int(score_el.get_text()) if score_el else 0
-
-    time_el = result.select_one(".search-time time")
-    created = time_el.get("datetime", "") if time_el else ""
-
-    body_el = result.select_one(".search-result-body .md")
-    selftext = body_el.get_text("\n", strip=True) if body_el else ""
-
-    flair_el = result.select_one(".linkflairlabel")
-    flair = flair_el.get_text(strip=True) if flair_el else ""
-
-    # A title link that isn't a /comments/ URL means it's an external link post.
-    external_url = ""
-    domain = ""
-    if title_href and "/comments/" not in title_href:
-        external_url = title_href
-        domain = urlparse(title_href).netloc
-
-    thumb_img = result.select_one("a.thumbnail img")
-    thumbnail = ""
-    if thumb_img and thumb_img.get("src"):
-        src = thumb_img["src"]
-        thumbnail = f"https:{src}" if src.startswith("//") else src
-
-    is_video = domain in ("v.redd.it", "youtube.com", "youtu.be")
-
-    return {
-        "type": "post",
-        "id": post_id,
-        "subreddit": subreddit,
-        "title": title,
-        "author": author,
-        "selftext": selftext,
-        "url": f"https://www.reddit.com{permalink}" if permalink else title_href,
-        "externalUrl": external_url,
-        "score": score,
-        "numComments": num_comments,
-        "created": created,
-        "isNSFW": False,
-        "isSpoiler": False,
-        "isPinned": False,
-        "flair": flair,
-        "awards": 0,
-        "domain": domain,
-        "isVideo": is_video,
-        "thumbnail": thumbnail,
-        "isPromoted": False,
-    }
-
-
-def format_comment_from_thing(thing: Any, depth: int = 0) -> dict[str, Any]:
-    """Format a comment from an old.reddit `<div class="thing">` BeautifulSoup tag."""
-    attrs = thing.attrs
-    classes = attrs.get("class", [])
-    fullname = attrs.get("data-fullname", "")
-    comment_id = fullname.replace("t1_", "")
-    permalink = attrs.get("data-permalink", "")
-
-    post_id = ""
-    parts = [p for p in permalink.split("/") if p]
-    if len(parts) >= 4 and parts[2] == "comments":
-        post_id = parts[3]
-
-    body_el = thing.select_one(".entry .usertext-body")
-    body = body_el.get_text("\n", strip=True) if body_el else "[deleted]"
-
-    score_el = thing.select_one(".score.unvoted")
-    score = _int(score_el.get("title")) if score_el else 0
-
-    time_el = thing.select_one(".tagline time")
-    created = time_el.get("datetime", "") if time_el else ""
-
-    return {
-        "type": "comment",
-        "id": comment_id,
-        "postId": post_id,
-        "subreddit": attrs.get("data-subreddit", ""),
-        "author": attrs.get("data-author", "[deleted]"),
-        "body": body,
-        "score": score,
-        "created": created,
-        "depth": depth,
-        "isSubmitter": "submitter" in classes,
-        "awards": _int(attrs.get("data-gildings")),
-        "url": f"https://www.reddit.com{permalink}",
     }
