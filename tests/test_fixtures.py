@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
+import unittest
 from pathlib import Path
 
 # Add src to path
@@ -28,7 +29,7 @@ def load_fixture(name: str) -> dict:
         return json.load(f)
 
 
-class TestPostFormatting:
+class TestPostFormatting(unittest.TestCase):
     """Post formatting from JSON listing data."""
 
     def test_format_post_has_all_required_fields(self):
@@ -91,7 +92,7 @@ class TestPostFormatting:
         assert post["thumbnail"] == "https://example.com/thumb.jpg"
 
 
-class TestCommentFormatting:
+class TestCommentFormatting(unittest.TestCase):
     """Comment formatting from JSON listing data."""
 
     def test_format_comment_has_all_required_fields(self):
@@ -109,6 +110,7 @@ class TestCommentFormatting:
 
     def test_format_comment_depth_propagation(self):
         data = load_fixture("sample_comment.json")
+        del data["depth"]  # remove from JSON to test fallback to parameter
         comment = format_comment_from_json(data, depth=3)
         assert comment["depth"] == 3
 
@@ -125,7 +127,7 @@ class TestCommentFormatting:
         assert comment["body"] == "[deleted]"
 
 
-class TestInputValidation:
+class TestInputValidation(unittest.TestCase):
     """Input validation logic."""
 
     def test_valid_subreddit_posts_mode(self):
@@ -210,7 +212,7 @@ class TestInputValidation:
         assert config.usernames == ["spez", "kn0thing"]
 
 
-class TestFromActorInput:
+class TestFromActorInput(unittest.TestCase):
     """Mapping from raw Apify input to ScraperInput."""
 
     def test_full_input_mapping(self):
