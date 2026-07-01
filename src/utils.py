@@ -24,7 +24,7 @@ REQUEST_JITTER = 0.5
 
 # 3 (not 2): a failed warm-up + IP rotation can consume an attempt before the
 # first real fetch, so give the fetch itself headroom.
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 RETRY_BASE_DELAY = 5.0
 
 # Navigation timeout. With heavy resources blocked (see BLOCKED_RESOURCE_TYPES),

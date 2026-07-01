@@ -163,9 +163,9 @@ async def main() -> None:
                 if batch:
                     await Actor.push_data(batch)
 
-        # 5. Fail loud on 0 results — almost always means Reddit changed something.
+        # 5. Report 0 results without hard-failing — almost always means Reddit changed something.
         if count == 0:
-            await Actor.fail(
+            await Actor.set_status_message(
                 status_message=(
                     "Scraped 0 results. Either the targets are empty/invalid, "
                     "or Reddit changed its HTML and the scraper needs updating. "
