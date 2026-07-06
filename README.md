@@ -4,17 +4,17 @@ Scrape Reddit posts, comments, search results, and user profiles at scale. No AP
 
 ## What does it do?
 
-Reddit Scraper pulls structured data from `old.reddit.com` — no OAuth, no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
+Reddit Scraper pulls structured data from `old.reddit.com` - no OAuth, no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
 
 **v1.2.0:** Reddit shut down its public `.json` API (returns 403 since May 2026). This actor now parses Reddit's server-rendered HTML instead, so it keeps working where `.json`-based scrapers broke. Output stays the same. Also added a fail-fast health check and faster request pacing.
 
-**v1.1.0:** Added batch search (`searchQueriesList`) — run multiple queries in a single job with automatic deduplication by post ID.
+**v1.1.0:** Added batch search (`searchQueriesList`) - run multiple queries in a single job with automatic deduplication by post ID.
 
 ## 👥 Who Uses This
 
 ### 🏢 Brand and Market Researchers
 
-You need to know what real people say about your product, competitors, or industry — not curated press releases, but unfiltered community discussion. Reddit is where honest opinions live. This actor lets you monitor multiple brand terms or competitor names in one run, deduplicated and ready for sentiment analysis.
+You need to know what real people say about your product, competitors, or industry - not curated press releases, but unfiltered community discussion. Reddit is where honest opinions live. This actor lets you monitor multiple brand terms or competitor names in one run, deduplicated and ready for sentiment analysis.
 
 **Typical input:**
 
@@ -35,7 +35,7 @@ Run this on a schedule (daily or weekly via Apify schedules) to track brand sent
 
 ### 💻 NLP and ML Engineers
 
-You need topic-specific text at scale — Reddit comments and posts for training classifiers, fine-tuning embeddings, building sentiment models, or labeling datasets. The structured output (author, score, depth, timestamp) gives you signal for quality filtering without post-processing.
+You need topic-specific text at scale - Reddit comments and posts for training classifiers, fine-tuning embeddings, building sentiment models, or labeling datasets. The structured output (author, score, depth, timestamp) gives you signal for quality filtering without post-processing.
 
 **Collect training data from multiple subreddits:**
 
@@ -56,7 +56,7 @@ Filter by `score` (high-upvote posts = community-validated content) and `depth` 
 
 ### 🛠️ Product Teams and Startups
 
-You want to understand what problems your target market is describing in their own words — not survey responses, but organic complaints, feature requests, and workaround threads. Reddit search across the right subreddits is a fast way to do Jobs-to-Be-Done research before writing a single line of code.
+You want to understand what problems your target market is describing in their own words - not survey responses, but organic complaints, feature requests, and workaround threads. Reddit search across the right subreddits is a fast way to do Jobs-to-Be-Done research before writing a single line of code.
 
 **Discovery research across communities:**
 
@@ -91,13 +91,13 @@ You're tracking narratives, investigating communities, or mapping how opinions s
 }
 ```
 
-Use `user_profile` mode to audit a specific account's post and comment history across subreddits — useful for investigating astroturfing, coordinated behavior, or tracking how a public figure's community engagement evolves.
+Use `user_profile` mode to audit a specific account's post and comment history across subreddits - useful for investigating astroturfing, coordinated behavior, or tracking how a public figure's community engagement evolves.
 
 ---
 
 ### 🤖 AI/LLM Engineers and Agent Builders
 
-You're building AI pipelines that need real-time access to community knowledge — RAG systems grounded in current Reddit discussions, agents that can search subreddits on demand, or workflows that pull fresh posts into an LLM context window.
+You're building AI pipelines that need real-time access to community knowledge - RAG systems grounded in current Reddit discussions, agents that can search subreddits on demand, or workflows that pull fresh posts into an LLM context window.
 
 **MCP tool config for Claude Desktop / Cursor:**
 
@@ -114,22 +114,22 @@ You're building AI pipelines that need real-time access to community knowledge �
 }
 ```
 
-Once configured, your AI agent can call `reddit-scraper` as a tool to search any subreddit, pull comment threads, or monitor user activity — no infrastructure to manage. Combine with other actors in the healthcare or finance cluster for multi-source research pipelines.
+Once configured, your AI agent can call `reddit-scraper` as a tool to search any subreddit, pull comment threads, or monitor user activity - no infrastructure to manage. Combine with other actors in the healthcare or finance cluster for multi-source research pipelines.
 
 ---
 
 ## Features
 
 - **4 scraping modes:** subreddit posts, Reddit search, user profiles, post comments
-- **Batch search:** run multiple search queries in a single job — results merged and deduplicated by post ID
-- **Multi-target:** subreddits, usernames, and post URLs all accept lists — scrape many at once
+- **Batch search:** run multiple search queries in a single job - results merged and deduplicated by post ID
+- **Multi-target:** subreddits, usernames, and post URLs all accept lists - scrape many at once
 - **Sort and filter:** hot, new, top (with configurable time range), rising
 - **Full comment trees:** recursive extraction with depth tracking
 - **Search scope:** across all of Reddit or restricted to a single subreddit
 - **User profiles:** posts only, comments only, or both
 - **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
 - **Browser-grade requests:** Playwright with Chrome TLS impersonation + rotating residential IPs to avoid blocks
-- **28 output fields per post** — including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
+- **28 output fields per post** - including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
 - **Retry logic:** exponential backoff on 429, IP rotation on 403
 - **Fail-fast health check:** a run that scrapes 0 results fails loudly instead of silently billing compute
 - **State persistence:** survives Apify actor migrations mid-run
@@ -240,16 +240,16 @@ Extract the full comment tree from specific Reddit posts.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `mode` | string | `subreddit_posts` | Scraping mode: `subreddit_posts`, `search`, `user_profile`, `post_comments` |
-| `subreddits` | string[] | — | Subreddit names (without r/ prefix). Mode: subreddit_posts |
+| `subreddits` | string[] | - | Subreddit names (without r/ prefix). Mode: subreddit_posts |
 | `sort` | string | `hot` | Sort order: `hot`, `new`, `top`, `rising` |
 | `timeFilter` | string | `week` | Time range for Top sort: `hour`, `day`, `week`, `month`, `year`, `all` |
-| `searchQuery` | string | — | Single search term. Mode: search |
-| `searchQueriesList` | string[] | `[]` | Multiple search queries — merged and deduplicated. Overrides `searchQuery`. Mode: search |
-| `searchSubreddit` | string | — | Restrict search to one subreddit. Leave empty for all of Reddit |
+| `searchQuery` | string | - | Single search term. Mode: search |
+| `searchQueriesList` | string[] | `[]` | Multiple search queries - merged and deduplicated. Overrides `searchQuery`. Mode: search |
+| `searchSubreddit` | string | - | Restrict search to one subreddit. Leave empty for all of Reddit |
 | `searchSort` | string | `relevance` | Search sort: `relevance`, `hot`, `top`, `new`, `comments` |
-| `usernames` | string[] | — | Reddit usernames (without u/ prefix). Mode: user_profile |
+| `usernames` | string[] | - | Reddit usernames (without u/ prefix). Mode: user_profile |
 | `userContentType` | string | `overview` | `overview` (posts+comments), `submitted`, `comments` |
-| `postUrls` | string[] | — | Full Reddit post URLs. Mode: post_comments |
+| `postUrls` | string[] | - | Full Reddit post URLs. Mode: post_comments |
 | `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no limit |
 | `maxResults` | integer | `100` | Max total results (1–10,000). Free tier: 25 per run |
 | `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Slower, higher proxy cost |
@@ -349,12 +349,12 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 
 ## Cost
 
-This actor uses **pay-per-event (PPE) pricing** — you pay only for results you get.
+This actor uses **pay-per-event (PPE) pricing** - you pay only for results you get.
 
 - Charged per dataset item pushed (default Apify PPE event)
 - **Proxy traffic** is billed separately (residential proxies run ~$12.50/GB on Apify)
 - Typical cost: **$0.50–$1.00 per 1,000 results** depending on proxy usage and whether comments are included
-- **Free tier: 25 results per run** — no subscription required
+- **Free tier: 25 results per run** - no subscription required
 - **Paid tier: up to 10,000 results per run**
 
 **Worked pricing example:**
@@ -370,7 +370,7 @@ Each listing page returns ~25 posts, and requests are paced at roughly 1 per sec
 
 ## MCP Integration
 
-This actor works as an MCP tool via Apify's hosted MCP server. No custom server needed — AI agents can call it directly.
+This actor works as an MCP tool via Apify's hosted MCP server. No custom server needed - AI agents can call it directly.
 
 - **Endpoint:** `https://mcp.apify.com?tools=labrat011/reddit-scraper`
 - **Auth:** `Authorization: Bearer <APIFY_TOKEN>`
@@ -392,13 +392,13 @@ This actor works as an MCP tool via Apify's hosted MCP server. No custom server 
 }
 ```
 
-AI agents can search Reddit for discussions, scrape subreddit posts, pull comment threads, and monitor user activity — all as a callable tool without managing any infrastructure.
+AI agents can search Reddit for discussions, scrape subreddit posts, pull comment threads, and monitor user activity - all as a callable tool without managing any infrastructure.
 
 ---
 
 ## Technical details
 
-- Parses `old.reddit.com` server-rendered HTML — no API credentials, no OAuth. (Reddit's `.json` API now returns 403; this actor does not depend on it.)
+- Parses `old.reddit.com` server-rendered HTML - no API credentials, no OAuth. (Reddit's `.json` API now returns 403; this actor does not depend on it.)
 - Requests use Chrome TLS impersonation via `curl_cffi` to pass Reddit's bot fingerprinting
 - Paced at ~1 request/second with jitter over rotating residential IPs
 - Exponential backoff on 429 (5s base, doubles per retry); IP rotation on 403
@@ -412,7 +412,7 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 ## Limitations
 
 - Reddit caps listing pagination at roughly 1,000 items per subreddit/user endpoint
-- `"Load more comments"` nodes in deep comment trees are not expanded — only the initially loaded tree (up to 500 comments/post) is extracted
+- `"Load more comments"` nodes in deep comment trees are not expanded - only the initially loaded tree (up to 500 comments/post) is extracted
 
 
 ---
@@ -451,10 +451,10 @@ The scraper logs a warning and skips the invalid target. All remaining valid tar
 | **Works after May '26 .json die-off** | ✅ Playwright warm-up | ❌ Not updated | ❌ Not updated | ❌ Not updated |
 | **Need Reddit API key / OAuth** | **No** | No | No | No |
 | **Residential proxies** | ✅ Required | Required | Required | Required |
-| **Batch search (multi-query)** | ✅ Yes | — | — | — |
+| **Batch search (multi-query)** | ✅ Yes | - | - | - |
 | **Free tier** | ✅ 25 results/run | ❌ | ❌ | ✅ Limited |
 
-**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges — competitors that still depend on the old `.json` endpoints now return 403s. At $1.20/1k, it's the cheapest working Reddit scraper on the Store.
+**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges - competitors that still depend on the old `.json` endpoints now return 403s. At $1.20/1k, it's the cheapest working Reddit scraper on the Store.
 
 ---
 
