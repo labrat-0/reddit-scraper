@@ -24,6 +24,7 @@ class SortOrder(str, Enum):
     NEW = "new"
     TOP = "top"
     RISING = "rising"
+    CONTROVERSIAL = "controversial"
 
 
 class TimeFilter(str, Enum):
@@ -76,6 +77,7 @@ class ScraperInput(BaseModel):
     # General settings
     max_results: int = 100
     include_comments: bool = False
+    include_nsfw: bool = False
 
     @field_validator("subreddits", mode="before")
     @classmethod
@@ -132,6 +134,7 @@ class ScraperInput(BaseModel):
             max_comments_per_post=raw.get("maxCommentsPerPost", 100),
             max_results=raw.get("maxResults", 100),
             include_comments=raw.get("includeComments", False),
+            include_nsfw=raw.get("includeNsfw", False),
         )
 
     def validate_for_mode(self) -> str | None:

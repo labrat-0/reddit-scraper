@@ -126,6 +126,10 @@ async def main() -> None:
                     if count >= max_results:
                         break
 
+                    # NSFW filter — skip adult content unless explicitly opted in
+                    if not config.include_nsfw and item.get("isNSFW"):
+                        continue
+
                     batch.append(item)
                     count += 1
                     state["scraped"] = count

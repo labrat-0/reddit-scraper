@@ -97,9 +97,9 @@ Use `user_profile` mode to audit a specific account's post and comment history a
 
 ### 🤖 AI/LLM Engineers and Agent Builders
 
-You're building AI pipelines that need real-time access to community knowledge - RAG systems grounded in current Reddit discussions, agents that can search subreddits on demand, or workflows that pull fresh posts into an LLM context window.
+You're building AI pipelines that need real-time access to community knowledge. RAG systems grounded in current Reddit discussions, agents that can search subreddits on demand, or workflows that pull fresh posts into an LLM context window.
 
-**MCP tool config for Claude Desktop / Cursor:**
+**MCP tool config for Claude Desktop / Cursor / VS Code / Windsurf / Gemini CLI:**
 
 ```json
 {
@@ -114,7 +114,14 @@ You're building AI pipelines that need real-time access to community knowledge -
 }
 ```
 
-Once configured, your AI agent can call `reddit-scraper` as a tool to search any subreddit, pull comment threads, or monitor user activity - no infrastructure to manage. Combine with other actors in the healthcare or finance cluster for multi-source research pipelines.
+This actor works as a hosted MCP tool via Apify's MCP server. No custom server, no infrastructure. Once configured, your AI agent can call `reddit-scraper` as a tool to search any subreddit, pull comment threads, or monitor user activity. Combine with other actors for multi-source research pipelines.
+
+**Quick setup (Claude Code):**
+```
+claude mcp add reddit-scraper \
+  -e APIFY_TOKEN=<YOUR_APIFY_TOKEN> \
+  -- npx -y @apify/actors-mcp-server@latest --actors labrat011/reddit-scraper
+```
 
 ---
 
@@ -123,10 +130,11 @@ Once configured, your AI agent can call `reddit-scraper` as a tool to search any
 - **4 scraping modes:** subreddit posts, Reddit search, user profiles, post comments
 - **Batch search:** run multiple search queries in a single job - results merged and deduplicated by post ID
 - **Multi-target:** subreddits, usernames, and post URLs all accept lists - scrape many at once
-- **Sort and filter:** hot, new, top (with configurable time range), rising
+- **Sort and filter:** hot, new, top (with configurable time range), rising, controversial
 - **Full comment trees:** recursive extraction with depth tracking
 - **Search scope:** across all of Reddit or restricted to a single subreddit
 - **User profiles:** posts only, comments only, or both
+- **NSFW filter:** optionally include or exclude adult content
 - **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
 - **Browser-grade requests:** Playwright with Chrome TLS impersonation + rotating residential IPs to avoid blocks
 - **28 output fields per post** - including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
@@ -443,18 +451,25 @@ The scraper logs a warning and skips the invalid target. All remaining valid tar
 
 ## Why This Scraper vs Alternatives
 
-| Feature | Reddit Scraper (labrat011) | trudax/reddit-scraper | trudax/reddit-scraper-lite | harshmaur/reddit-scraper |
+| Feature | Reddit Scraper (labrat011) | spry_wholemeal/reddit-scraper (FREE) | trudax/reddit-scraper | harshmaur/reddit-scraper-pro |
 |---|---|---|---|---|
-| **Price per 1k** | **$1.20** | ~$4 + $45/mo sub | $3.40 | $1.50–2.00 |
-| **Rating** | **4.7** ⭐ | 2.4 ⚠️ | 4.6 | 5.0 |
-| **Runs** | 1.9K | 14K | 30K | 5.5K |
-| **Works after May '26 .json die-off** | ✅ Playwright warm-up | ❌ Not updated | ❌ Not updated | ❌ Not updated |
+| **Price per 1k** | **$1.50** | Free (platform compute only) | ~$4 + $45/mo sub | $20/mo |
+| **Rating** | 0.0 (0 reviews) | **5.0** (12 reviews) | 2.5 | 4.7 |
+| **Total Users** | 192 | **1,100** | 14K | 2.8K |
+| **MAU** | 55 | **221** | - | - |
+| **Works after May '26 .json die-off** | ✅ Playwright warm-up | ? | ? | ❌ |
 | **Need Reddit API key / OAuth** | **No** | No | No | No |
-| **Residential proxies** | ✅ Required | Required | Required | Required |
-| **Batch search (multi-query)** | ✅ Yes | - | - | - |
-| **Free tier** | ✅ 25 results/run | ❌ | ❌ | ✅ Limited |
+| **MCP Server (AI agent)** | ✅ Apify hosted MCP | ✅ Custom npx MCP | ❌ | ❌ |
+| **NSFW filter** | ✅ | ❌ | ❌ | ❌ |
+| **Controversial sort** | ✅ | ❌ | ❌ | ❌ |
+| **Batch search (multi-query)** | ✅ | ❌ | ❌ | ❌ |
+| **User profile scraping** | ✅ | ❌ | ❌ | ❌ |
+| **Free tier** | ✅ 25 results/run | ✅ Free all results | ❌ | ✅ Limited |
+| **Updated since May '26** | ✅ Yes (v1.2) | Possibly not | Unlikely | Unlikely |
 
-**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges - competitors that still depend on the old `.json` endpoints now return 403s. At $1.20/1k, it's the cheapest working Reddit scraper on the Store.
+**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges. Competitors that still depend on the old `.json` endpoints now return 403s. At $1.50/1k, you get affordable scalable results with MCP support, batch search, user profiles, controversial sorting, and an NSFW filter.
+
+**About the free competitor:** spry_wholemeal/reddit-scraper is a solid free option for light use. Its paid counterpart (harshmaur/reddit-scraper-pro) costs $20/mo. Neither offers batch search, user profiles, controversial sort, or NSFW filtering. If you need any of those -- or need to know your scraper works after May 2026 -- this actor is the right choice.
 
 ---
 

@@ -34,8 +34,8 @@
             "type": "string",
             "description": "How to sort subreddit posts.",
             "editor": "select",
-            "enum": ["hot", "new", "top", "rising"],
-            "enumTitles": ["🔥 Hot", "🆕 New", "🏆 Top", "📈 Rising"],
+            "enum": ["hot", "new", "top", "rising", "controversial"],
+            "enumTitles": ["🔥 Hot", "🆕 New", "🏆 Top", "📈 Rising", "⚖️ Controversial"],
             "default": "hot"
         },
         "timeFilter": {
@@ -126,6 +126,12 @@
             "title": "💬 Include Comments with Posts",
             "type": "boolean",
             "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. Slower and uses more proxy traffic.",
+            "default": false
+        },
+        "includeNsfw": {
+            "title": "🔞 Include NSFW Content",
+            "type": "boolean",
+            "description": "When enabled, adult/NSFW content is included in results. Default is off (NSFW posts are filtered out).",
             "default": false
         },
         "proxyConfiguration": {
