@@ -361,16 +361,16 @@ This actor uses **pay-per-event (PPE) pricing** - you pay only for results you g
 
 - Charged per dataset item pushed (default Apify PPE event)
 - **Proxy traffic** is billed separately (residential proxies run ~$12.50/GB on Apify)
-- Typical cost: **$0.50–$1.00 per 1,000 results** depending on proxy usage and whether comments are included
+- Typical cost: **$1.50 per 1,000 results** depending on proxy usage and whether comments are included
 - **Free tier: 25 results per run** - no subscription required
 - **Paid tier: up to 10,000 results per run**
 
 **Worked pricing example:**
 Searching 3 subreddits for "python framework", sorting by top of the month, returning 100 results:
 - ~4-8 requests × 25 items each
-- ~$0.15–0.20 in event charges (100 items × $1.50/1k + $0.01 run start)
+- ~$0.15–0.20 in event charges (100 items × $1.50/1k + $0.02 run start)
 - ~$0.01–0.03 in residential proxy traffic
-- **Total: ~$0.16–0.23 per run**
+- **Total: ~$0.17–0.20 per run**
 
 Each listing page returns ~25 posts, and requests are paced at roughly 1 per second over rotating residential IPs. A 100-post subreddit run takes well under a minute. Enabling `includeComments` adds one request per post.
 
@@ -455,8 +455,8 @@ The scraper logs a warning and skips the invalid target. All remaining valid tar
 |---|---|---|---|---|
 | **Price per 1k** | **$1.50** | Free (platform compute only) | ~$4 + $45/mo sub | $20/mo |
 | **Rating** | 0.0 (0 reviews) | **5.0** (12 reviews) | 2.5 | 4.7 |
-| **Total Users** | 192 | **1,100** | 14K | 2.8K |
-| **MAU** | 55 | **221** | - | - |
+| **Total Users** | 214 | **1,100** | 14K | 2.8K |
+| **MAU** | 62 | **221** | - | - |
 | **Works after May '26 .json die-off** | ✅ Playwright warm-up | ? | ? | ❌ |
 | **Need Reddit API key / OAuth** | **No** | No | No | No |
 | **MCP Server (AI agent)** | ✅ Apify hosted MCP | ✅ Custom npx MCP | ❌ | ❌ |
