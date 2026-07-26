@@ -1,6 +1,6 @@
 # Reddit Scraper
 
-Scrape Reddit posts, comments, search results, and user profiles at scale. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
+Scrape Reddit posts, comments, search results, and user profiles at scale. Works with n8n, Make, and Zapier. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines. 97.7% success rate.
 
 ## What does it do?
 
@@ -383,7 +383,7 @@ This actor works as an MCP tool via Apify's hosted MCP server. No custom server 
 - **Endpoint:** `https://mcp.apify.com?tools=labrat011/reddit-scraper`
 - **Auth:** `Authorization: Bearer <APIFY_TOKEN>`
 - **Transport:** Streamable HTTP
-- **Works with:** Claude Desktop, Cursor, VS Code, Windsurf, Warp, Gemini CLI
+- **Works with:** n8n, Make, Zapier, Claude Desktop, Cursor, VS Code, Windsurf, Warp, Gemini CLI
 
 **Claude Desktop / Cursor config:**
 
