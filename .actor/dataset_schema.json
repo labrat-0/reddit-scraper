@@ -6,8 +6,11 @@
         "properties": {
             "type": {
                 "type": "string",
-                "description": "Record type — post or comment",
-                "enum": ["post", "comment"],
+                "description": "Record type \u2014 post or comment",
+                "enum": [
+                    "post",
+                    "comment"
+                ],
                 "nullable": true,
                 "example": "post"
             },
@@ -133,12 +136,15 @@
             },
             "upvoteRatio": {
                 "type": "number",
-                "description": "Upvote ratio (0.0–1.0), community consensus signal (posts only)",
+                "description": "Upvote ratio (0.0\u20131.0), community consensus signal (posts only)",
                 "nullable": true,
                 "example": 0.89
             },
             "edited": {
-                "type": ["number", "boolean"],
+                "type": [
+                    "number",
+                    "boolean"
+                ],
                 "description": "Unix timestamp of last edit, or false if never edited (posts and comments)",
                 "nullable": true,
                 "example": 1740850000
@@ -219,14 +225,75 @@
             "display": {
                 "component": "table",
                 "properties": {
-                    "type": { "label": "Type", "format": "text" },
-                    "subreddit": { "label": "Subreddit", "format": "text" },
-                    "title": { "label": "Title", "format": "text" },
-                    "author": { "label": "Author", "format": "text" },
-                    "score": { "label": "Score", "format": "number" },
-                    "numComments": { "label": "Comments", "format": "number" },
-                    "created": { "label": "Created", "format": "date" },
-                    "url": { "label": "URL", "format": "link" }
+                    "type": {
+                        "label": "Type",
+                        "format": "text"
+                    },
+                    "subreddit": {
+                        "label": "Subreddit",
+                        "format": "text"
+                    },
+                    "title": {
+                        "label": "Title",
+                        "format": "text"
+                    },
+                    "author": {
+                        "label": "Author",
+                        "format": "text"
+                    },
+                    "score": {
+                        "label": "Score",
+                        "format": "number"
+                    },
+                    "numComments": {
+                        "label": "Comments",
+                        "format": "number"
+                    },
+                    "created": {
+                        "label": "Created",
+                        "format": "date"
+                    },
+                    "url": {
+                        "label": "URL",
+                        "format": "link"
+                    }
+                }
+            }
+        },
+        "minimal-preview": {
+            "title": "Minimal Preview",
+            "transformation": {
+                "fields": [
+                    "title",
+                    "score",
+                    "url",
+                    "subreddit",
+                    "created"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "title": {
+                        "label": "Title",
+                        "format": "text"
+                    },
+                    "score": {
+                        "label": "Score",
+                        "format": "number"
+                    },
+                    "url": {
+                        "label": "URL",
+                        "format": "link"
+                    },
+                    "subreddit": {
+                        "label": "Subreddit",
+                        "format": "text"
+                    },
+                    "created": {
+                        "label": "Created",
+                        "format": "date"
+                    }
                 }
             }
         }
