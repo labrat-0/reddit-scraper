@@ -1,301 +1,459 @@
 {
-    "actorSpecification": 1,
-    "fields": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "properties": {
-            "type": {
-                "type": "string",
-                "description": "Record type \u2014 post or comment",
-                "enum": [
-                    "post",
-                    "comment"
-                ],
-                "nullable": true,
-                "example": "post"
-            },
-            "id": {
-                "type": "string",
-                "description": "Reddit item ID (base36)",
-                "nullable": true,
-                "example": "abc123"
-            },
-            "subreddit": {
-                "type": "string",
-                "description": "Subreddit name without the r/ prefix",
-                "nullable": true,
-                "example": "technology"
-            },
-            "title": {
-                "type": "string",
-                "description": "Post title (posts only)",
-                "nullable": true,
-                "example": "An interesting discussion about technology trends"
-            },
-            "author": {
-                "type": "string",
-                "description": "Reddit username of the post or comment author",
-                "nullable": true,
-                "example": "exampleuser"
-            },
-            "selftext": {
-                "type": "string",
-                "description": "Body text of a self/text post (posts only)",
-                "nullable": true,
-                "example": "I wanted to share some thoughts on this topic..."
-            },
-            "body": {
-                "type": "string",
-                "description": "Body text of a comment (comments only)",
-                "nullable": true,
-                "example": "This is a really interesting point. I agree that..."
-            },
-            "url": {
-                "type": "string",
-                "description": "Full Reddit permalink URL of the post or comment",
-                "nullable": true,
-                "example": "https://www.reddit.com/r/technology/comments/abc123/an_interesting_post/"
-            },
-            "externalUrl": {
-                "type": "string",
-                "description": "External URL linked by the post, if it is a link post (posts only)",
-                "nullable": true,
-                "example": "https://example.com/article"
-            },
-            "score": {
-                "type": "number",
-                "description": "Net upvote score of the post or comment",
-                "nullable": true,
-                "example": 1542
-            },
-            "numComments": {
-                "type": "number",
-                "description": "Total number of comments on the post (posts only)",
-                "nullable": true,
-                "example": 237
-            },
-            "created": {
-                "type": "string",
-                "description": "ISO 8601 UTC timestamp when the item was created",
-                "nullable": true,
-                "example": "2025-01-15T12:00:00+00:00"
-            },
-            "isNSFW": {
-                "type": "boolean",
-                "description": "Whether the post is marked as Not Safe For Work (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "isSpoiler": {
-                "type": "boolean",
-                "description": "Whether the post is marked as a spoiler (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "isPinned": {
-                "type": "boolean",
-                "description": "Whether the post is stickied/pinned by a moderator (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "flair": {
-                "type": "string",
-                "description": "Link flair text applied to the post (posts only)",
-                "nullable": true,
-                "example": "Discussion"
-            },
-            "awards": {
-                "type": "number",
-                "description": "Total number of awards received",
-                "nullable": true,
-                "example": 3
-            },
-            "domain": {
-                "type": "string",
-                "description": "Domain of the linked URL for link posts (posts only)",
-                "nullable": true,
-                "example": "self.technology"
-            },
-            "isVideo": {
-                "type": "boolean",
-                "description": "Whether the post contains a video (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "thumbnail": {
-                "type": "string",
-                "description": "URL of the post thumbnail image, empty for self/text posts (posts only)",
-                "nullable": true,
-                "example": "https://b.thumbs.redditmedia.com/abc.jpg"
-            },
-            "isPromoted": {
-                "type": "boolean",
-                "description": "Whether the post is a promoted ad (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "upvoteRatio": {
-                "type": "number",
-                "description": "Upvote ratio (0.0\u20131.0), community consensus signal (posts only)",
-                "nullable": true,
-                "example": 0.89
-            },
-            "edited": {
-                "type": [
-                    "number",
-                    "boolean"
-                ],
-                "description": "Unix timestamp of last edit, or false if never edited (posts and comments)",
-                "nullable": true,
-                "example": 1740850000
-            },
-            "postHint": {
-                "type": "string",
-                "description": "Reddit's type hint for the post: link, self, image, video, rich:video (posts only)",
-                "nullable": true,
-                "example": "link"
-            },
-            "isOriginalContent": {
-                "type": "boolean",
-                "description": "Whether the post is marked as original content/OC (posts only)",
-                "nullable": true,
-                "example": true
-            },
-            "authorFlair": {
-                "type": "string",
-                "description": "Author's subreddit flair text (posts only)",
-                "nullable": true,
-                "example": "Expert"
-            },
-            "crosspostParent": {
-                "type": "string",
-                "description": "If this is a crosspost, the parent post ID (t3_xxx) (posts only)",
-                "nullable": true,
-                "example": "t3_xyz789"
-            },
-            "mediaOnly": {
-                "type": "boolean",
-                "description": "Whether the post is media-only with no text content (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "isGallery": {
-                "type": "boolean",
-                "description": "Whether the post contains a Reddit gallery (posts only)",
-                "nullable": true,
-                "example": false
-            },
-            "postId": {
-                "type": "string",
-                "description": "ID of the parent post this comment belongs to (comments only)",
-                "nullable": true,
-                "example": "abc123"
-            },
-            "depth": {
-                "type": "number",
-                "description": "Nesting depth of the comment in the thread (0 = top-level) (comments only)",
-                "nullable": true,
-                "example": 0
-            },
-            "isSubmitter": {
-                "type": "boolean",
-                "description": "Whether the comment author is the original post submitter (comments only)",
-                "nullable": true,
-                "example": false
-            }
-        },
-        "required": [],
-        "additionalProperties": true
+  "actorSpecification": 1,
+  "fields": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "description": "Record type \u2014 post or comment",
+        "enum": [
+          "post",
+          "comment"
+        ],
+        "nullable": true,
+        "example": "post"
+      },
+      "id": {
+        "type": "string",
+        "description": "Reddit item ID (base36)",
+        "nullable": true,
+        "example": "abc123"
+      },
+      "subreddit": {
+        "type": "string",
+        "description": "Subreddit name without the r/ prefix",
+        "nullable": true,
+        "example": "technology"
+      },
+      "title": {
+        "type": "string",
+        "description": "Post title (posts only)",
+        "nullable": true,
+        "example": "An interesting discussion about technology trends"
+      },
+      "author": {
+        "type": "string",
+        "description": "Reddit username of the post or comment author",
+        "nullable": true,
+        "example": "exampleuser"
+      },
+      "selftext": {
+        "type": "string",
+        "description": "Body text of a self/text post (posts only)",
+        "nullable": true,
+        "example": "I wanted to share some thoughts on this topic..."
+      },
+      "body": {
+        "type": "string",
+        "description": "Body text of a comment (comments only)",
+        "nullable": true,
+        "example": "This is a really interesting point. I agree that..."
+      },
+      "url": {
+        "type": "string",
+        "description": "Full Reddit permalink URL of the post or comment",
+        "nullable": true,
+        "example": "https://www.reddit.com/r/technology/comments/abc123/an_interesting_post/"
+      },
+      "externalUrl": {
+        "type": "string",
+        "description": "External URL linked by the post, if it is a link post (posts only)",
+        "nullable": true,
+        "example": "https://example.com/article"
+      },
+      "score": {
+        "type": "number",
+        "description": "Net upvote score of the post or comment",
+        "nullable": true,
+        "example": 1542
+      },
+      "numComments": {
+        "type": "number",
+        "description": "Total number of comments on the post (posts only)",
+        "nullable": true,
+        "example": 237
+      },
+      "created": {
+        "type": "string",
+        "description": "ISO 8601 UTC timestamp when the item was created",
+        "nullable": true,
+        "example": "2025-01-15T12:00:00+00:00"
+      },
+      "isNSFW": {
+        "type": "boolean",
+        "description": "Whether the post is marked as Not Safe For Work (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "isSpoiler": {
+        "type": "boolean",
+        "description": "Whether the post is marked as a spoiler (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "isPinned": {
+        "type": "boolean",
+        "description": "Whether the post is stickied/pinned by a moderator (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "flair": {
+        "type": "string",
+        "description": "Link flair text applied to the post (posts only)",
+        "nullable": true,
+        "example": "Discussion"
+      },
+      "awards": {
+        "type": "number",
+        "description": "Total number of awards received",
+        "nullable": true,
+        "example": 3
+      },
+      "domain": {
+        "type": "string",
+        "description": "Domain of the linked URL for link posts (posts only)",
+        "nullable": true,
+        "example": "self.technology"
+      },
+      "isVideo": {
+        "type": "boolean",
+        "description": "Whether the post contains a video (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "thumbnail": {
+        "type": "string",
+        "description": "URL of the post thumbnail image, empty for self/text posts (posts only)",
+        "nullable": true,
+        "example": "https://b.thumbs.redditmedia.com/abc.jpg"
+      },
+      "isPromoted": {
+        "type": "boolean",
+        "description": "Whether the post is a promoted ad (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "upvoteRatio": {
+        "type": "number",
+        "description": "Upvote ratio (0.0\u20131.0), community consensus signal (posts only)",
+        "nullable": true,
+        "example": 0.89
+      },
+      "edited": {
+        "type": [
+          "number",
+          "boolean"
+        ],
+        "description": "Unix timestamp of last edit, or false if never edited (posts and comments)",
+        "nullable": true,
+        "example": 1740850000
+      },
+      "postHint": {
+        "type": "string",
+        "description": "Reddit's type hint for the post: link, self, image, video, rich:video (posts only)",
+        "nullable": true,
+        "example": "link"
+      },
+      "isOriginalContent": {
+        "type": "boolean",
+        "description": "Whether the post is marked as original content/OC (posts only)",
+        "nullable": true,
+        "example": true
+      },
+      "authorFlair": {
+        "type": "string",
+        "description": "Author's subreddit flair text (posts only)",
+        "nullable": true,
+        "example": "Expert"
+      },
+      "crosspostParent": {
+        "type": "string",
+        "description": "If this is a crosspost, the parent post ID (t3_xxx) (posts only)",
+        "nullable": true,
+        "example": "t3_xyz789"
+      },
+      "mediaOnly": {
+        "type": "boolean",
+        "description": "Whether the post is media-only with no text content (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "isGallery": {
+        "type": "boolean",
+        "description": "Whether the post contains a Reddit gallery (posts only)",
+        "nullable": true,
+        "example": false
+      },
+      "postId": {
+        "type": "string",
+        "description": "ID of the parent post this comment belongs to (comments only)",
+        "nullable": true,
+        "example": "abc123"
+      },
+      "depth": {
+        "type": "number",
+        "description": "Nesting depth of the comment in the thread (0 = top-level) (comments only)",
+        "nullable": true,
+        "example": 0
+      },
+      "isSubmitter": {
+        "type": "boolean",
+        "description": "Whether the comment author is the original post submitter (comments only)",
+        "nullable": true,
+        "example": false
+      }
     },
-    "views": {
-        "overview": {
-            "title": "Overview",
-            "transformation": {
-                "fields": [
-                    "type",
-                    "subreddit",
-                    "title",
-                    "author",
-                    "score",
-                    "numComments",
-                    "created",
-                    "url"
-                ]
-            },
-            "display": {
-                "component": "table",
-                "properties": {
-                    "type": {
-                        "label": "Type",
-                        "format": "text"
-                    },
-                    "subreddit": {
-                        "label": "Subreddit",
-                        "format": "text"
-                    },
-                    "title": {
-                        "label": "Title",
-                        "format": "text"
-                    },
-                    "author": {
-                        "label": "Author",
-                        "format": "text"
-                    },
-                    "score": {
-                        "label": "Score",
-                        "format": "number"
-                    },
-                    "numComments": {
-                        "label": "Comments",
-                        "format": "number"
-                    },
-                    "created": {
-                        "label": "Created",
-                        "format": "date"
-                    },
-                    "url": {
-                        "label": "URL",
-                        "format": "link"
-                    }
-                }
-            }
-        },
-        "minimal-preview": {
-            "title": "Minimal Preview",
-            "transformation": {
-                "fields": [
-                    "title",
-                    "score",
-                    "url",
-                    "subreddit",
-                    "created"
-                ]
-            },
-            "display": {
-                "component": "table",
-                "properties": {
-                    "title": {
-                        "label": "Title",
-                        "format": "text"
-                    },
-                    "score": {
-                        "label": "Score",
-                        "format": "number"
-                    },
-                    "url": {
-                        "label": "URL",
-                        "format": "link"
-                    },
-                    "subreddit": {
-                        "label": "Subreddit",
-                        "format": "text"
-                    },
-                    "created": {
-                        "label": "Created",
-                        "format": "date"
-                    }
-                }
-            }
+    "required": [],
+    "additionalProperties": true
+  },
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "transformation": {
+        "fields": [
+          "type",
+          "subreddit",
+          "title",
+          "author",
+          "score",
+          "numComments",
+          "created",
+          "url"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "type": {
+            "label": "Type",
+            "format": "text"
+          },
+          "subreddit": {
+            "label": "Subreddit",
+            "format": "text"
+          },
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "author": {
+            "label": "Author",
+            "format": "text"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "numComments": {
+            "label": "Comments",
+            "format": "number"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          },
+          "url": {
+            "label": "URL",
+            "format": "link"
+          }
         }
+      }
+    },
+    "minimal-preview": {
+      "title": "Minimal Preview",
+      "transformation": {
+        "fields": [
+          "title",
+          "score",
+          "url",
+          "subreddit",
+          "created"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "url": {
+            "label": "URL",
+            "format": "link"
+          },
+          "subreddit": {
+            "label": "Subreddit",
+            "format": "text"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          }
+        }
+      }
+    },
+    "search-results": {
+      "title": "Search Results",
+      "transformation": {
+        "fields": [
+          "title",
+          "score",
+          "url",
+          "subreddit",
+          "created",
+          "numComments"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "url": {
+            "label": "URL",
+            "format": "link"
+          },
+          "subreddit": {
+            "label": "Subreddit",
+            "format": "text"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          },
+          "numComments": {
+            "label": "Comments",
+            "format": "number"
+          }
+        }
+      }
+    },
+    "user-activity": {
+      "title": "User Activity",
+      "transformation": {
+        "fields": [
+          "title",
+          "author",
+          "score",
+          "subreddit",
+          "created",
+          "type"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "author": {
+            "label": "Author",
+            "format": "text"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "subreddit": {
+            "label": "Subreddit",
+            "format": "text"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          },
+          "type": {
+            "label": "Type",
+            "format": "text"
+          }
+        }
+      }
+    },
+    "comment-thread": {
+      "title": "Comment Thread",
+      "transformation": {
+        "fields": [
+          "author",
+          "body",
+          "score",
+          "created",
+          "postId"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "author": {
+            "label": "Author",
+            "format": "text"
+          },
+          "body": {
+            "label": "Body",
+            "format": "text"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          },
+          "postId": {
+            "label": "Parent Post",
+            "format": "text"
+          }
+        }
+      }
+    },
+    "monitoring-feed": {
+      "title": "Monitoring Feed",
+      "transformation": {
+        "fields": [
+          "title",
+          "subreddit",
+          "created",
+          "score",
+          "url"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "title": {
+            "label": "Title",
+            "format": "text"
+          },
+          "subreddit": {
+            "label": "Subreddit",
+            "format": "text"
+          },
+          "created": {
+            "label": "Created",
+            "format": "date"
+          },
+          "score": {
+            "label": "Score",
+            "format": "number"
+          },
+          "url": {
+            "label": "URL",
+            "format": "link"
+          }
+        }
+      }
     }
+  }
 }
