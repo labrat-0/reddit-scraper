@@ -389,7 +389,8 @@
           "body",
           "score",
           "created",
-          "postId"
+          "postId",
+          "depth"
         ]
       },
       "display": {
@@ -414,6 +415,10 @@
           "postId": {
             "label": "Parent Post",
             "format": "text"
+          },
+          "depth": {
+            "label": "Depth",
+            "format": "number"
           }
         }
       }
