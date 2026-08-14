@@ -63,7 +63,7 @@ You want to understand what problems your target market is describing in their o
 ```json
 {
     "mode": "search",
-    "searchQueriesList": ["wish there was a tool for", "looking for software that", "does anyone know how to automate"],
+    "searchQueriesList": ["\"wish there was a tool for\"", "\"looking for software that\"", "\"does anyone know how to automate\""],
     "searchSubreddit": "entrepreneur",
     "searchSort": "relevance",
     "maxResults": 200
@@ -160,13 +160,23 @@ Scrape posts from one or more subreddits.
 }
 ```
 
-Sort options: `hot`, `new`, `top`, `rising`. `timeFilter` applies only when `sort` is `top`: `hour`, `day`, `week`, `month`, `year`, `all`.
+Sort options: `hot`, `new`, `top`, `rising`. `timeFilter` applies only when the sort is `top`: `hour`, `day`, `week`, `month`, `year`, `all`.
+
+The same rule holds in Search mode, where the sort field is `searchSort`. `timeFilter` is accepted with any sort value but only takes effect when that value is `top`. The default `relevance` sort favours highly upvoted posts, which are often years old, so pair `top` with `timeFilter` when you need recent results.
 
 ---
 
 ### Mode 2: Search Reddit
 
 Search across all of Reddit or within a specific subreddit. Use `searchQueriesList` to run multiple queries in one job.
+
+**Quote your phrases.** Reddit matches loose words by default, so an unquoted multi-word query returns mostly unrelated posts. Wrap a phrase in double quotes to match it exactly:
+
+```json
+{ "searchQuery": "\"looking for an alternative to\"" }
+```
+
+Unquoted, `looking for an alternative to` matches any post containing some of those common words. Quoted, it matches the phrase.
 
 **Single query:**
 
@@ -192,6 +202,8 @@ Search across all of Reddit or within a specific subreddit. Use `searchQueriesLi
 ```
 
 Results across all queries are merged and deduplicated by post ID. `searchQueriesList` overrides `searchQuery` when provided.
+
+`maxResults` is a budget for the whole run, not per query, and it is consumed one query at a time. With six queries and `maxResults: 25`, the first query can use the entire budget and the rest return nothing. Allow at least 25 per query you expect results from.
 
 **Restricted to a subreddit:**
 
