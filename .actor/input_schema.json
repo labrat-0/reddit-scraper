@@ -59,9 +59,8 @@
         "searchQueriesList": {
             "title": "🔍 Search Queries List (Batch Search)",
             "type": "array",
-            "description": "Run multiple search queries in a single job. Results are merged and deduplicated by post ID, and this field overrides Search Query when provided. IMPORTANT: wrap each phrase in double quotes for exact-phrase matching, for example [\"\\\"looking for an alternative to\\\"\", \"\\\"is there a tool that\\\"\"]. Unquoted phrases return loosely matched, mostly irrelevant posts. Note that maxResults is a shared budget across all queries and is consumed in order, so later queries return nothing once it is used up. Ideal for brand monitoring, competitor research, and topic mapping.",
-            "editor": "json",
-            "items": { "type": "string" },
+            "description": "Run multiple search queries in a single job. Results are merged and deduplicated by post ID, and this field overrides Search Query when provided. IMPORTANT: wrap each phrase in double quotes for exact-phrase matching, for example \"looking for an alternative to\" as one entry and \"is there a tool that\" as another. (When sending input as JSON, the inner quotes must be escaped.) Unquoted phrases return loosely matched, mostly irrelevant posts. Note that maxResults is a shared budget across all queries and is consumed in order, so later queries return nothing once it is used up. Ideal for brand monitoring, competitor research, and topic mapping.",
+            "editor": "stringList",
             "prefill": []
         },
         "searchSubreddit": {
