@@ -41,7 +41,7 @@
         "timeFilter": {
             "title": "📅 Time Filter (Top sort only)",
             "type": "string",
-            "description": "Time range when sorting by Top. Only applies when sort is 'Top'.",
+            "description": "Time range filter. Applies ONLY when the sort is Top: that means sort='top' in Subreddit Posts mode, or searchSort='top' in Search mode. With any other sort value this field is accepted but has no effect.",
             "editor": "select",
             "enum": ["hour", "day", "week", "month", "year", "all"],
             "enumTitles": ["Past Hour", "Past 24 Hours", "Past Week", "Past Month", "Past Year", "All Time"],
@@ -52,14 +52,14 @@
             "sectionDescription": "Search across all of Reddit or within a specific subreddit. Use Search Queries List below to search multiple terms in one run.",
             "title": "🔍 Search Query",
             "type": "string",
-            "description": "Keyword or phrase to search across Reddit. Use searchQueriesList for multiple queries in one run.",
+            "description": "Keyword or phrase to search across Reddit. IMPORTANT: Reddit matches loose words by default, not phrases. To match an exact phrase, wrap it in double quotes: \"looking for an alternative to\". (When sending input as JSON, the quotes must be escaped.) An unquoted multi-word query returns largely unrelated posts. Use searchQueriesList for multiple queries in one run.",
             "editor": "textfield",
             "prefill": "machine learning"
         },
         "searchQueriesList": {
             "title": "🔍 Search Queries List (Batch Search)",
             "type": "array",
-            "description": "Run multiple search queries in a single job — results are merged and deduplicated by post ID. Overrides the single Search Query field when provided. Ideal for brand monitoring, competitor research, and topic mapping. Example: [\"ChatGPT vs Claude\", \"best LLM 2025\", \"AI coding assistant\"]",
+            "description": "Run multiple search queries in a single job. Results are merged and deduplicated by post ID, and this field overrides Search Query when provided. IMPORTANT: wrap each phrase in double quotes for exact-phrase matching, for example [\"\\\"looking for an alternative to\\\"\", \"\\\"is there a tool that\\\"\"]. Unquoted phrases return loosely matched, mostly irrelevant posts. Note that maxResults is a shared budget across all queries and is consumed in order, so later queries return nothing once it is used up. Ideal for brand monitoring, competitor research, and topic mapping.",
             "editor": "json",
             "prefill": []
         },
@@ -72,7 +72,7 @@
         "searchSort": {
             "title": "🔃 Search Sort Order",
             "type": "string",
-            "description": "How to sort search results.",
+            "description": "How to sort search results. Relevance, the default, favours highly upvoted posts, which are often several years old. For recent results use Top together with timeFilter, or New for the newest posts regardless of engagement.",
             "editor": "select",
             "enum": ["relevance", "hot", "top", "new", "comments"],
             "enumTitles": ["⭐ Relevance", "🔥 Hot", "🏆 Top", "🆕 New", "💬 Most Comments"],
@@ -117,7 +117,7 @@
             "sectionDescription": "Control output volume and proxy configuration.",
             "title": "🔢 Max Results",
             "type": "integer",
-            "description": "Maximum number of results to return. Free users are limited to 25 results per run. Subscribe for up to 10,000.",
+            "description": "Maximum number of results for the whole run. This is a shared total, not a per-query limit: when using searchQueriesList the budget is consumed one query at a time, so allow at least 25 per query you expect results from. Free users are limited to 25 results per run. Subscribe for up to 10,000.",
             "default": 100,
             "minimum": 1,
             "maximum": 10000
