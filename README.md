@@ -506,11 +506,11 @@ The scraper logs a warning and skips the invalid target. All remaining valid tar
 
 ## n8n example
 
-A ready-to-import n8n workflow is in [`examples/n8n`](examples/n8n): scheduled Reddit search, phrase tagging, and append to Google Sheets. It contains no credentials.
+A ready-to-import n8n workflow is in [`examples/n8n`](https://github.com/labrat-0/reddit-scraper/tree/main/examples/n8n): scheduled Reddit search, phrase tagging, and append to Google Sheets. It contains no credentials.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/labrat-0/reddit-scraper/blob/main/LICENSE).
 
 ## Feedback
 
