@@ -6,6 +6,8 @@ Scrape Reddit posts, comments, search results, and user profiles at scale. Works
 
 Reddit Scraper pulls structured data from `old.reddit.com` - no OAuth, no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
 
+**v1.3.0:** Input schema rewritten for clarity, including for AI agents calling this actor over MCP. Documents that search phrases must be quoted for exact matching, that `maxResults` is a run-wide budget shared across queries, and that `timeFilter` only applies when the sort is `top`. `searchQueriesList` now renders as a string list rather than a raw JSON field. No change to scraping behaviour.
+
 **v1.2.0:** Reddit shut down its public `.json` API (returns 403 since May 2026). This actor now parses Reddit's server-rendered HTML instead, so it keeps working where `.json`-based scrapers broke. Output stays the same. Also added a fail-fast health check and faster request pacing.
 
 **v1.1.0:** Added batch search (`searchQueriesList`) - run multiple queries in a single job with automatic deduplication by post ID.
@@ -262,16 +264,16 @@ Extract the full comment tree from specific Reddit posts.
 | `mode` | string | `subreddit_posts` | Scraping mode: `subreddit_posts`, `search`, `user_profile`, `post_comments` |
 | `subreddits` | string[] | - | Subreddit names (without r/ prefix). Mode: subreddit_posts |
 | `sort` | string | `hot` | Sort order: `hot`, `new`, `top`, `rising` |
-| `timeFilter` | string | `week` | Time range for Top sort: `hour`, `day`, `week`, `month`, `year`, `all` |
-| `searchQuery` | string | - | Single search term. Mode: search |
-| `searchQueriesList` | string[] | `[]` | Multiple search queries - merged and deduplicated. Overrides `searchQuery`. Mode: search |
+| `timeFilter` | string | `week` | Time range. Applies **only** when the sort is `top` (`sort` in subreddit mode, `searchSort` in search mode): `hour`, `day`, `week`, `month`, `year`, `all` |
+| `searchQuery` | string | - | Single search term. Wrap in double quotes for exact-phrase matching. Mode: search |
+| `searchQueriesList` | string[] | `[]` | Multiple search queries, merged and deduplicated. Quote each phrase for exact matching. Overrides `searchQuery`. Mode: search |
 | `searchSubreddit` | string | - | Restrict search to one subreddit. Leave empty for all of Reddit |
 | `searchSort` | string | `relevance` | Search sort: `relevance`, `hot`, `top`, `new`, `comments` |
 | `usernames` | string[] | - | Reddit usernames (without u/ prefix). Mode: user_profile |
 | `userContentType` | string | `overview` | `overview` (posts+comments), `submitted`, `comments` |
 | `postUrls` | string[] | - | Full Reddit post URLs. Mode: post_comments |
 | `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no limit |
-| `maxResults` | integer | `100` | Max total results (1–10,000). Free tier: 25 per run |
+| `maxResults` | integer | `100` | Max results for the whole run (1–10,000), shared across all queries and consumed in order. Free tier: 25 per run |
 | `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Slower, higher proxy cost |
 | `proxyConfiguration` | object | Residential | Proxy settings. Residential proxies required |
 
@@ -414,6 +416,11 @@ This actor works as an MCP tool via Apify's hosted MCP server. No custom server 
 
 AI agents can search Reddit for discussions, scrape subreddit posts, pull comment threads, and monitor user activity - all as a callable tool without managing any infrastructure.
 
+**If you are calling this from an agent, two settings matter most:**
+
+- **Quote your phrases.** Reddit matches loose words unless a phrase is quoted, so `"looking for an alternative to"` and `looking for an alternative to` return very different results. The unquoted form succeeds and returns mostly unrelated posts, with no error to signal it.
+- **Pair `searchSort: "top"` with `timeFilter`.** The default `relevance` sort favours highly upvoted posts, which are often years old. `timeFilter` has no effect on any other sort value.
+
 ---
 
 ## Technical details
@@ -496,6 +503,14 @@ The scraper logs a warning and skips the invalid target. All remaining valid tar
 | [NPI Provider Contact Finder](https://apify.com/labrat011/npi-provider-contact-finder) | Healthcare provider directory | Health subreddit discussions lead to provider lookup needs |
 
 ---
+
+## n8n example
+
+A ready-to-import n8n workflow is in [`examples/n8n`](examples/n8n): scheduled Reddit search, phrase tagging, and append to Google Sheets. It contains no credentials.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## Feedback
 
