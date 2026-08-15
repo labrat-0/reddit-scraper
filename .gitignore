@@ -32,8 +32,14 @@ Thumbs.db
 .env.local
 
 
-# Private notes, never commit
+# Private notes, never commit (RatLabs standard)
+# Public repos are customer-facing. Internal planning and launch prep are
+# kept outside the repo.
 DEPLOYMENT_INFO.md
 MONETIZATION.md
+PRICING_STRATEGY.md
 docs/MONETIZATION.md
+docs/superpowers/
+.planning/
+.claude/
 *.private.md
