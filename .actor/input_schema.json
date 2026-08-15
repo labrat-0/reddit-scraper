@@ -13,10 +13,10 @@
             "editor": "select",
             "enum": ["subreddit_posts", "search", "user_profile", "post_comments"],
             "enumTitles": [
-                "📋 Subreddit Posts — scrape top/hot/new posts from subreddits",
-                "🔍 Search Reddit — find posts matching keywords",
-                "👤 User Profile — scrape a user's posts and comments",
-                "💬 Post Comments — extract full comment threads"
+                "📋 Subreddit Posts: scrape top/hot/new posts from subreddits",
+                "🔍 Search Reddit: find posts matching keywords",
+                "👤 User Profile: scrape a user's posts and comments",
+                "💬 Post Comments: extract full comment threads"
             ],
             "default": "subreddit_posts"
         },
@@ -139,7 +139,7 @@
             "sectionDescription": "Reddit blocks datacenter IPs. Residential proxies are required for reliable scraping.",
             "title": "🔒 Proxy Configuration",
             "type": "object",
-            "description": "Proxy settings. Residential proxies are strongly recommended — Reddit blocks most datacenter IPs.",
+            "description": "Proxy settings. Residential proxies are strongly recommended, Reddit blocks most datacenter IPs.",
             "editor": "proxy",
             "prefill": {
                 "useApifyProxy": true,

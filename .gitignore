@@ -32,5 +32,8 @@ Thumbs.db
 .env.local
 
 
-# Deployment strategy (private — stored in _apify_intel/deployment/ only)
+# Private notes, never commit
 DEPLOYMENT_INFO.md
+MONETIZATION.md
+docs/MONETIZATION.md
+*.private.md

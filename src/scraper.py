@@ -38,7 +38,7 @@ class RedditScraper:
         self.max_pages = max_pages
 
     async def scrape(self) -> AsyncIterator[dict[str, Any]]:
-        """Main entry point — dispatches to the correct mode."""
+        """Main entry point, dispatches to the correct mode."""
         mode = self.config.mode
 
         if mode == ScrapingMode.SUBREDDIT_POSTS:

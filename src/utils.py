@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # JS challenge is solved by a one-time warm-up visit to the site root.
 BASE_URL = "https://www.reddit.com"
 
-# Playwright page loads are heavier than raw HTTP — give more breathing room.
+# Playwright page loads are heavier than raw HTTP, give more breathing room.
 REQUEST_INTERVAL = 1.5
 REQUEST_JITTER = 0.5
 
@@ -28,11 +28,11 @@ MAX_RETRIES = 5
 RETRY_BASE_DELAY = 5.0
 
 # Navigation timeout. With heavy resources blocked (see BLOCKED_RESOURCE_TYPES),
-# old.reddit pages load fast — a tight ceiling caps the timeout-burn failure mode.
+# old.reddit pages load fast, a tight ceiling caps the timeout-burn failure mode.
 NAV_TIMEOUT_MS = 25_000
 
 # Resource types aborted before they hit the proxy. images/fonts/media are the
-# bulk of bandwidth and old.reddit HTML parsing never needs them — blocking cuts
+# bulk of bandwidth and old.reddit HTML parsing never needs them, blocking cuts
 # residential proxy cost ~85%. CSS is deliberately NOT blocked: a real browser
 # always fetches stylesheets, and their absence makes the request graph look
 # non-human, which trips Reddit's 2026 bot detection (403). Scripts are kept so
@@ -135,7 +135,7 @@ class PageFetcher:
     async def __aenter__(self) -> "PageFetcher":
         self.start_time = asyncio.get_event_loop().time()
         self._playwright = await async_playwright().start()
-        # Apify runs the container as root — Chromium needs --no-sandbox to launch.
+        # Apify runs the container as root, Chromium needs --no-sandbox to launch.
         # --disable-dev-shm-usage avoids crashes from the small /dev/shm in containers.
         self._browser = await self._playwright.chromium.launch(
             headless=True,
@@ -157,7 +157,7 @@ class PageFetcher:
         if self.proxy_config:
             proxy_url = await self.proxy_config.new_url()
             # Apify's proxy URL embeds credentials (http://user:pass@host:port).
-            # Playwright ignores creds in `server` — they must be split out, or the
+            # Playwright ignores creds in `server`, they must be split out, or the
             # CONNECT hangs and page.goto times out.
             p = urlparse(proxy_url)
             self._proxy_settings = {
@@ -234,7 +234,7 @@ class PageFetcher:
         """Visit the reddit.com root cold so the network-security JS challenge
         can run and drop its clearance cookie into the shared context. Returns
         the number of cookies the context holds afterward (a jump means the
-        challenge set something). Best-effort — never raises."""
+        challenge set something). Best-effort, never raises."""
         page = None
         try:
             page = await self._context.new_page()
@@ -279,9 +279,9 @@ class PageFetcher:
     async def probe(self, urls: list[str]) -> list[dict[str, Any]]:
         """Diagnostic: warm up (solve challenge), then GET each URL and report
         what came back. If a target still shows the network-security wall, wait
-        and reload once — these challenges often clear on the second pass."""
+        and reload once, these challenges often clear on the second pass."""
         warm_cookies = await self.warmup()
-        logger.info(f"warmup complete — context holds {warm_cookies} cookies")
+        logger.info(f"warmup complete, context holds {warm_cookies} cookies")
 
         out: list[dict[str, Any]] = []
         for url in urls:
@@ -345,7 +345,7 @@ class PageFetcher:
                 if cookies > 0:
                     self._warmed = True
                 else:
-                    logger.warning("warmup set no cookies — rotating IP")
+                    logger.warning("warmup set no cookies, rotating IP")
                     try:
                         await self._init_context()
                     except Exception as reinit_err:
@@ -385,7 +385,7 @@ class PageFetcher:
                 logger.warning(
                     f"HTTP {status} on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
                 )
-                # 403/503 = challenge re-armed or IP flagged — rotate IP + re-warm.
+                # 403/503 = challenge re-armed or IP flagged, rotate IP + re-warm.
                 if status in (403, 503):
                     try:
                         await self._init_context()
@@ -474,7 +474,7 @@ class PageFetcher:
                     f"Playwright error on {url}: {e}. "
                     f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
                 )
-                # Recreate context on error — it may be in a bad state.
+                # Recreate context on error, it may be in a bad state.
                 try:
                     await self._init_context()
                 except Exception as reinit_err:

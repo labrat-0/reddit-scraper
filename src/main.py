@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 FREE_TIER_LIMIT = 25
 
-# Margin circuit breaker: abort a run once its estimated compute + proxy cost
-# exceeds the gross revenue it has earned so far (with a small floor). This kills
-# wedged/timeout runs (e.g. the May 30 2026 case: minutes of burn for ~no output)
-# WITHOUT truncating large efficient runs, whose budget scales with result count.
-GROSS_PER_RESULT_USD = 0.0015  # charged price effective after Jul 11 2026: $1.50 / 1,000
+# Runaway-cost breaker: abort a run once its estimated compute + proxy spend
+# exceeds the budget its results have earned (with a small floor). This stops
+# wedged or timing-out runs that burn resources for little output, without
+# truncating large efficient runs, whose budget scales with result count.
+BUDGET_PER_RESULT_USD = 0.0015
 MIN_COST_ALLOWANCE_USD = 0.05  # headroom before the breaker can ever trip
-CU_RATE_USD_PER_HR = 0.20  # Starter tier: $0.20 per compute-unit-hour (1GB·1hr)
+CU_RATE_USD_PER_HR = 0.20  # compute unit hour (1GB for 1hr)
 RESIDENTIAL_USD_PER_GB = 8.0
 
 
@@ -40,7 +40,7 @@ async def main() -> None:
         # 1. Get and validate input
         raw_input = await Actor.get_input() or {}
 
-        # Diagnostic mode runs BEFORE validation — it needs no scrape targets,
+        # Diagnostic mode runs BEFORE validation, it needs no scrape targets,
         # only the proxy. Probes which endpoints survive on the live residential
         # proxy (HTML listing vs .json), logs, and exits. Trigger with
         # {"diagnose": true} in the actor input. Remove once path is settled.
@@ -65,7 +65,7 @@ async def main() -> None:
                         f"blocked={r['blocked']} len={r['len']} "
                         f"head=[{r['head']}] :: {r['url']}"
                     )
-            await Actor.set_status_message("Diagnostic probe complete — see log.")
+            await Actor.set_status_message("Diagnostic probe complete, see log.")
             return
 
         config = ScraperInput.from_actor_input(raw_input)
@@ -88,7 +88,7 @@ async def main() -> None:
                 "Subscribe to the actor for unlimited results."
             )
 
-        # Free users need at most 1 page (25 posts) — cap pagination to avoid
+        # Free users need at most 1 page (25 posts), cap pagination to avoid
         # burning proxy budget for users who will never see more than 25 results.
         max_pages = MAX_PAGES_FREE if not is_paying and os.environ.get("APIFY_IS_AT_HOME") == "1" else MAX_PAGES
 
@@ -97,7 +97,7 @@ async def main() -> None:
             f"max_results={max_results}"
         )
 
-        # 3. Set up proxy — residential IPs avoid Reddit datacenter blocks
+        # 3. Set up proxy: residential IPs avoid Reddit datacenter blocks
         proxy_input = raw_input.get("proxyConfiguration") or {
             "useApifyProxy": True,
             "apifyProxyGroups": ["RESIDENTIAL"],
@@ -126,7 +126,7 @@ async def main() -> None:
                     if count >= max_results:
                         break
 
-                    # NSFW filter — skip adult content unless explicitly opted in
+                    # NSFW filter: skip adult content unless explicitly opted in
                     if not config.include_nsfw and item.get("isNSFW"):
                         continue
 
@@ -141,20 +141,19 @@ async def main() -> None:
                             f"Scraped {count}/{max_results} items"
                         )
 
-                    # Margin breaker — checked per item (not per batch) so wedged
+                    # Cost breaker, checked per item (not per batch) so wedged
                     # low-yield runs that never fill a batch are still caught.
                     elapsed = asyncio.get_event_loop().time() - fetcher.start_time
                     est_cost = _estimate_run_cost_usd(elapsed, fetcher.total_bytes)
-                    budget = max(MIN_COST_ALLOWANCE_USD, count * GROSS_PER_RESULT_USD)
+                    budget = max(MIN_COST_ALLOWANCE_USD, count * BUDGET_PER_RESULT_USD)
                     if est_cost > budget:
                         cost_exceeded = True
                         Actor.log.warning(
-                            f"Margin breaker tripped: est cost ~${est_cost:.3f} > "
-                            f"budget ${budget:.3f} after {count} items. "
-                            "Stopping to protect margin."
+                            f"Cost breaker tripped: est resource cost ~${est_cost:.3f} > "
+                            f"budget ${budget:.3f} after {count} items. Stopping."
                         )
                         await Actor.set_status_message(
-                            f"Stopped at {count} items — run cost exceeded revenue."
+                            f"Stopped at {count} items, run resource budget exceeded."
                         )
                         break
 
@@ -167,7 +166,7 @@ async def main() -> None:
                 if batch:
                     await Actor.push_data(batch)
 
-        # 5. Report 0 results without hard-failing — almost always means Reddit changed something.
+        # 5. Report 0 results without hard-failing, almost always means Reddit changed something.
         if count == 0:
             await Actor.set_status_message(
                 status_message=(
@@ -178,16 +177,15 @@ async def main() -> None:
             )
             return
 
-        # Instrumentation: prove resource blocking + show run economics in logs.
+        # Instrumentation: confirms resource blocking is working on real runs.
         elapsed = asyncio.get_event_loop().time() - fetcher.start_time
-        est_cost = _estimate_run_cost_usd(elapsed, fetcher.total_bytes)
         total_reqs = fetcher.blocked_requests + fetcher.allowed_requests
         blocked_pct = (fetcher.blocked_requests / total_reqs * 100) if total_reqs else 0
         Actor.log.info(
-            f"Cost report | requests: {fetcher.blocked_requests} blocked "
+            f"Resource report | requests: {fetcher.blocked_requests} blocked "
             f"({blocked_pct:.0f}%) / {fetcher.allowed_requests} allowed | "
             f"data: {fetcher.total_bytes / 1024:.0f} KB | "
-            f"elapsed: {elapsed:.1f}s | est cost: ${est_cost:.4f}"
+            f"elapsed: {elapsed:.1f}s"
         )
 
         msg = f"Done. Scraped {count} items."
