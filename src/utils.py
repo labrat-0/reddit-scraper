@@ -263,65 +263,6 @@ class PageFetcher:
                 except Exception:
                     pass
 
-    def _classify(self, body: str) -> dict[str, Any]:
-        lower = body.lower()
-        marks = [n for n in (
-            'network security', 'shreddit', '__r', 'whoa there',
-            'cloudflare', 'challenge', '"kind"', '<!doctype html',
-        ) if n in lower]
-        return {
-            "len": len(body),
-            "listing": '"kind": "Listing"' in body or '"kind":"Listing"' in body,
-            "blocked": "<title>Blocked</title>" in body,
-            "head": "|".join(marks) or " ".join(body.split())[:160],
-        }
-
-    async def probe(self, urls: list[str]) -> list[dict[str, Any]]:
-        """Diagnostic: warm up (solve challenge), then GET each URL and report
-        what came back. If a target still shows the network-security wall, wait
-        and reload once, these challenges often clear on the second pass."""
-        warm_cookies = await self.warmup()
-        logger.info(f"warmup complete, context holds {warm_cookies} cookies")
-
-        out: list[dict[str, Any]] = []
-        for url in urls:
-            await self.rate_limiter.wait()
-            page = None
-            entry: dict[str, Any] = {"url": url, "status": 0, "listing": False,
-                                     "blocked": False, "len": 0, "head": ""}
-            try:
-                page = await self._context.new_page()
-                resp = await page.goto(
-                    url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
-                )
-                entry["status"] = resp.status if resp else 0
-                body = await page.content()
-                cls = self._classify(body)
-                # Still challenged? wait for the solver, reload once, re-read.
-                if "network security" in cls["head"] or "challenge" in cls["head"]:
-                    await page.wait_for_timeout(6000)
-                    try:
-                        resp = await page.reload(
-                            wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
-                        )
-                        entry["status"] = resp.status if resp else entry["status"]
-                        body = await page.content()
-                        cls = self._classify(body)
-                    except Exception:
-                        pass
-                entry.update(cls)
-            except Exception as e:  # noqa: BLE001 - diagnostic, log and continue
-                entry["status"] = -1
-                logger.warning(f"probe error on {url}: {e}")
-            finally:
-                if page:
-                    try:
-                        await page.close()
-                    except Exception:
-                        pass
-            out.append(entry)
-        return out
-
     async def fetch_json(
         self, url: str, params: dict[str, Any] | None = None
     ) -> Any | None:

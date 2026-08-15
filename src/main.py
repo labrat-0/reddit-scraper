@@ -40,34 +40,6 @@ async def main() -> None:
         # 1. Get and validate input
         raw_input = await Actor.get_input() or {}
 
-        # Diagnostic mode runs BEFORE validation, it needs no scrape targets,
-        # only the proxy. Probes which endpoints survive on the live residential
-        # proxy (HTML listing vs .json), logs, and exits. Trigger with
-        # {"diagnose": true} in the actor input. Remove once path is settled.
-        if raw_input.get("diagnose"):
-            probe_proxy_input = raw_input.get("proxyConfiguration") or {
-                "useApifyProxy": True,
-                "apifyProxyGroups": ["RESIDENTIAL"],
-            }
-            probe_proxy = await Actor.create_proxy_configuration(
-                actor_proxy_input=probe_proxy_input
-            )
-            probe_urls = [
-                "https://www.reddit.com/r/python/hot/.json?limit=5",
-                "https://www.reddit.com/r/python/hot/",
-                "https://old.reddit.com/r/python/hot/.json?limit=5",
-                "https://old.reddit.com/r/python/hot/?limit=5",
-            ]
-            async with PageFetcher(RateLimiter(), probe_proxy) as probe_fetcher:
-                for r in await probe_fetcher.probe(probe_urls):
-                    Actor.log.info(
-                        f"PROBE status={r['status']} listing={r['listing']} "
-                        f"blocked={r['blocked']} len={r['len']} "
-                        f"head=[{r['head']}] :: {r['url']}"
-                    )
-            await Actor.set_status_message("Diagnostic probe complete, see log.")
-            return
-
         config = ScraperInput.from_actor_input(raw_input)
 
         validation_error = config.validate_for_mode()
