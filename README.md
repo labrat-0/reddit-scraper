@@ -362,9 +362,11 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
     "thumbnail": "",
     "isPromoted": false,
     "upvoteRatio": 0.89,
+    "edited": false,
     "postHint": "self",
     "isOriginalContent": true,
     "authorFlair": "Expert",
+    "crosspostParent": "",
     "mediaOnly": false,
     "isGallery": false
 }
