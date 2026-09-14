@@ -89,7 +89,7 @@ You're tracking narratives, investigating communities, or mapping how opinions s
         "https://www.reddit.com/r/politics/comments/abc123/some_breaking_story/",
         "https://www.reddit.com/r/technology/comments/def456/another_post/"
     ],
-    "maxCommentsPerPost": 1000
+    "maxCommentsPerPost": 500
 }
 ```
 
@@ -163,7 +163,7 @@ Scrape posts from one or more subreddits.
 }
 ```
 
-Sort options: `hot`, `new`, `top`, `rising`. `timeFilter` applies only when the sort is `top`: `hour`, `day`, `week`, `month`, `year`, `all`.
+Sort options: `hot`, `new`, `top`, `rising`, `controversial`. `timeFilter` applies only when the sort is `top`: `hour`, `day`, `week`, `month`, `year`, `all`.
 
 The same rule holds in Search mode, where the sort field is `searchSort`. `timeFilter` is accepted with any sort value but only takes effect when that value is `top`. The default `relevance` sort favours highly upvoted posts, which are often years old, so pair `top` with `timeFilter` when you need recent results.
 
@@ -266,7 +266,7 @@ Extract the full comment tree from specific Reddit posts.
 |-----------|------|---------|-------------|
 | `mode` | string | `subreddit_posts` | Scraping mode: `subreddit_posts`, `search`, `user_profile`, `post_comments` |
 | `subreddits` | string[] | - | Subreddit names (without r/ prefix). Mode: subreddit_posts |
-| `sort` | string | `hot` | Sort order: `hot`, `new`, `top`, `rising` |
+| `sort` | string | `hot` | Sort order: `hot`, `new`, `top`, `rising`, `controversial` |
 | `timeFilter` | string | `week` | Time range. Applies **only** when the sort is `top` (`sort` in subreddit mode, `searchSort` in search mode): `hour`, `day`, `week`, `month`, `year`, `all` |
 | `searchQuery` | string | - | Single search term. Wrap in double quotes for exact-phrase matching. Mode: search |
 | `searchQueriesList` | string[] | `[]` | Multiple search queries, merged and deduplicated. Quote each phrase for exact matching. Overrides `searchQuery`. Mode: search |
@@ -374,22 +374,21 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 
 ## Cost
 
-This actor uses **pay-per-event (PPE) pricing** - you pay only for results you get.
+This actor uses **pay-per-event (PPE) pricing**. You pay for results, not for machine time.
 
-- Charged per dataset item pushed (default Apify PPE event)
-- **Proxy traffic** is billed separately (residential proxies run ~$12.50/GB on Apify)
-- Typical cost: **$1.50 per 1,000 results** depending on proxy usage and whether comments are included
-- **Free tier: 25 results per run** - no subscription required
-- **Paid tier: up to 10,000 results per run**
+- **$0.0015 per result**, charged on each item pushed to the dataset, so **$1.50 per 1,000 results**
+- **$0.02 per GB of actor memory** when the run starts, which is $0.04 on the default 2 GB
+- **Nothing else.** Compute time and residential proxy traffic are not billed to you, they are already covered by the per-result price
+- **Free Apify plan: 25 results per run.** Subscribe to the actor for up to 10,000
 
 **Worked pricing example:**
-Searching 3 subreddits for "python framework", sorting by top of the month, returning 100 results:
-- ~4-8 requests × 25 items each
-- ~$0.15–0.20 in event charges (100 items × $1.50/1k + $0.02 run start)
-- ~$0.01–0.03 in residential proxy traffic
-- **Total: ~$0.17–0.20 per run**
+Searching for `"python framework"`, sorted by top of the month, returning 100 results on the default 2 GB:
 
-Each listing page returns ~25 posts, and requests are paced at roughly 1 per second over rotating residential IPs. A 100-post subreddit run takes well under a minute. Enabling `includeComments` adds one request per post.
+- 100 results × $0.0015 = **$0.15**
+- actor start, 2 GB × $0.02 = **$0.04**
+- **Total: $0.19 per run**
+
+Each listing page returns ~25 posts, and requests are paced at one per ~1.5 seconds over rotating residential IPs, so a 100-post subreddit run finishes well inside a minute. Enabling `includeComments` adds one request per post, and makes every comment a billable result, so raise `maxResults` to match.
 
 ---
 
