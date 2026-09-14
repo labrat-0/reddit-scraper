@@ -140,18 +140,8 @@ async def main() -> None:
                 if batch:
                     await Actor.push_data(batch)
 
-        # 5. Report 0 results without hard-failing, almost always means Reddit changed something.
-        if count == 0:
-            await Actor.set_status_message(
-                status_message=(
-                    "Scraped 0 results. Either the targets are empty/invalid, "
-                    "or Reddit changed its HTML and the scraper needs updating. "
-                    "Check the logs for warnings."
-                )
-            )
-            return
-
-        # Instrumentation: confirms resource blocking is working on real runs.
+        # Instrumentation, logged before the empty-run return: a run that got
+        # nothing is the one that most needs its request and byte counts.
         elapsed = asyncio.get_event_loop().time() - fetcher.start_time
         total_reqs = fetcher.blocked_requests + fetcher.allowed_requests
         blocked_pct = (fetcher.blocked_requests / total_reqs * 100) if total_reqs else 0
@@ -161,6 +151,18 @@ async def main() -> None:
             f"data: {fetcher.total_bytes / 1024:.0f} KB | "
             f"elapsed: {elapsed:.1f}s"
         )
+
+        # 5. Report 0 results without hard-failing.
+        if count == 0:
+            await Actor.set_status_message(
+                status_message=(
+                    "Scraped 0 results. The targets may be empty or invalid, the "
+                    "search may have no matches, or Reddit may have blocked the "
+                    "proxy IPs used by this run. Check the run log for warnings, "
+                    "then try again."
+                )
+            )
+            return
 
         msg = f"Done. Scraped {count} items."
         if cost_exceeded:

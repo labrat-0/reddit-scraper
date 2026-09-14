@@ -131,7 +131,7 @@
         "includeNsfw": {
             "title": "🔞 Include NSFW Content",
             "type": "boolean",
-            "description": "When enabled, adult/NSFW content is included in results. Default is off (NSFW posts are filtered out).",
+            "description": "When enabled, adult/NSFW content is included in results. Default is off, which filters out NSFW posts and the comments on them, so a filtered post never leaves its thread behind.",
             "default": false
         },
         "proxyConfiguration": {

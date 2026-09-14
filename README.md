@@ -136,7 +136,7 @@ claude mcp add reddit-scraper \
 - **Full comment trees:** recursive extraction with depth tracking
 - **Search scope:** across all of Reddit or restricted to a single subreddit
 - **User profiles:** posts only, comments only, or both
-- **NSFW filter:** optionally include or exclude adult content
+- **NSFW filter:** optionally include or exclude adult content. Excluding it drops NSFW posts and their comment threads together
 - **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
 - **Browser-grade requests:** real headless Chrome via Playwright, on rotating residential IPs, to avoid blocks
 - **28 output fields per post** - including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection

@@ -70,6 +70,18 @@ class RedditScraper:
 
     # --- JSON listing helpers ---
 
+    def _nsfw_excluded(self, data: dict[str, Any]) -> bool:
+        """True if this raw Reddit object must be dropped as adult content.
+
+        Filtering on the raw object, before it is formatted, is what makes the
+        filter cover comments. A comment record carries no NSFW field of its
+        own, so anything downstream can only ever see the flag on a post, and
+        a post dropped there would still leave its whole thread behind.
+        """
+        if self.config.include_nsfw:
+            return False
+        return bool(data.get("over_18"))
+
     @staticmethod
     def _children(listing: Any) -> list[dict[str, Any]]:
         """Return the children array from a Listing object, or []."""
@@ -122,6 +134,8 @@ class RedditScraper:
             for child in children:
                 kind = child.get("kind")
                 data = child.get("data", {})
+                if self._nsfw_excluded(data):
+                    continue
                 if kind == "t3" and "t3" in kinds:
                     yield format_post_from_json(data)
                 elif kind == "t1" and "t1" in kinds:
@@ -235,8 +249,20 @@ class RedditScraper:
 
             # Comment endpoints return [post_listing, comments_listing].
             post_children = self._children(data[0]) if isinstance(data, list) and data else []
+            post_data = post_children[0].get("data", {}) if post_children else {}
+
+            # Drop the target whole. Yielding the thread of a post that was
+            # itself filtered out is how adult content reached callers who
+            # asked not to receive any.
+            if post_children and self._nsfw_excluded(post_data):
+                logger.info(
+                    f"Skipping NSFW post {post_id}, includeNsfw is off. "
+                    "Its comments are skipped with it."
+                )
+                continue
+
             if post_children:
-                yield format_post_from_json(post_children[0].get("data", {}))
+                yield format_post_from_json(post_data)
 
             comment_listing = data[1] if isinstance(data, list) and len(data) > 1 else None
             results: list[dict[str, Any]] = []
