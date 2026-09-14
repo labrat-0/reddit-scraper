@@ -4,11 +4,11 @@ Scrape Reddit posts, comments, search results, and user profiles at scale. Works
 
 ## What does it do?
 
-Reddit Scraper pulls structured data from `old.reddit.com` - no OAuth, no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
+Reddit Scraper pulls structured data straight from Reddit, with no OAuth and no Reddit API credentials. You get clean, consistent JSON output ready for analysis, NLP pipelines, or downstream AI tools.
 
-**v1.3.0:** Input schema rewritten for clarity, including for AI agents calling this actor over MCP. Documents that search phrases must be quoted for exact matching, that `maxResults` is a run-wide budget shared across queries, and that `timeFilter` only applies when the sort is `top`. `searchQueriesList` now renders as a string list rather than a raw JSON field. No change to scraping behaviour.
+**v1.3.0:** Input schema rewritten for clarity, including for AI agents calling this actor over MCP. Documents that search phrases must be quoted for exact matching, that `maxResults` is a run-wide budget shared across queries, and that `timeFilter` only applies when the sort is `top`. `searchQueriesList` now renders as a string list rather than a raw JSON field. The actor also now reads Reddit's own JSON listings on `www.reddit.com`, reached through a browser challenge warm-up, instead of parsing server-rendered HTML. Output stays the same.
 
-**v1.2.0:** Reddit shut down its public `.json` API (returns 403 since May 2026). This actor now parses Reddit's server-rendered HTML instead, so it keeps working where `.json`-based scrapers broke. Output stays the same. Also added a fail-fast health check and faster request pacing.
+**v1.2.0:** Reddit started returning 403 on its public `.json` endpoints in May 2026. This actor switched to parsing Reddit's server-rendered HTML, so it kept working where `.json`-based scrapers broke. Output stayed the same. Also added a fail-fast health check and faster request pacing.
 
 **v1.1.0:** Added batch search (`searchQueriesList`) - run multiple queries in a single job with automatic deduplication by post ID.
 
@@ -141,7 +141,7 @@ claude mcp add reddit-scraper \
 - **Browser-grade requests:** Playwright with Chrome TLS impersonation + rotating residential IPs to avoid blocks
 - **28 output fields per post** - including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
 - **Retry logic:** exponential backoff on 429, IP rotation on 403
-- **Fail-fast health check:** a run that scrapes 0 results fails loudly instead of silently billing compute
+- **Clear empty-run signal:** a run that scrapes 0 results stops with a status message naming the likely cause, and pushes no items, so there is nothing to pay per result
 - **State persistence:** survives Apify actor migrations mid-run
 
 ---
@@ -425,13 +425,13 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 
 ## Technical details
 
-- Parses `old.reddit.com` server-rendered HTML - no API credentials, no OAuth. (Reddit's `.json` API now returns 403; this actor does not depend on it.)
-- Requests use Chrome TLS impersonation via `curl_cffi` to pass Reddit's bot fingerprinting
-- Paced at ~1 request/second with jitter over rotating residential IPs
-- Exponential backoff on 429 (5s base, doubles per retry); IP rotation on 403
-- Pagination by following the listing's next-page link (up to ~1,000 items per listing)
+- Reads Reddit's own JSON listings on `www.reddit.com` - no API credentials, no OAuth
+- Runs headless Chromium via Playwright, with a one-time challenge warm-up per IP, matched user-agent and client-hint profiles, and images, media and fonts blocked to keep proxy bandwidth down
+- Paced at one request per ~1.5 seconds with jitter, over rotating residential IPs
+- Exponential backoff on 429 (5s base, doubles per retry); IP rotation and re-warm on 403 and 503
+- Pagination by following the listing's `after` cursor (up to ~1,000 items per listing)
 - Results pushed in batches of 25 for memory efficiency
-- Fail-fast health check: a run that yields 0 results fails with a clear message
+- A run that yields 0 results stops with a status message naming the likely cause
 - Actor state persisted across Apify platform migrations
 
 ---

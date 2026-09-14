@@ -232,13 +232,19 @@ class PageFetcher:
 
     async def warmup(self) -> int:
         """Visit the reddit.com root cold so the network-security JS challenge
-        can run and drop its clearance cookie into the shared context. Returns
-        the number of cookies the context holds afterward (a jump means the
-        challenge set something). Best-effort, never raises."""
+        can run and drop its clearance cookie into the shared context.
+
+        Returns the number of cookies the visit added, or 0 if it never landed
+        on a cleared page. A bare `len(cookies)` cannot be used: `_init_context`
+        seeds `over18` and `_options`, so the count is never zero, and Reddit
+        sets `edgebucket` even on a 403 interstitial. Count only what this visit
+        added, and require a 200 on the final response. Best-effort, never raises.
+        """
         page = None
         try:
             page = await self._context.new_page()
-            await page.goto(
+            before = {c["name"] for c in await self._context.cookies()}
+            response = await page.goto(
                 "https://www.reddit.com/",
                 wait_until="domcontentloaded",
                 timeout=NAV_TIMEOUT_MS,
@@ -247,12 +253,21 @@ class PageFetcher:
             # set the clearance cookie. These solvers typically take a few sec.
             await page.wait_for_timeout(6000)
             try:
-                await page.reload(wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+                reloaded = await page.reload(
+                    wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS
+                )
+                response = reloaded or response
                 await page.wait_for_timeout(3000)
             except Exception:
                 pass
-            cookies = await self._context.cookies()
-            return len(cookies)
+
+            status = response.status if response else 0
+            if status != 200:
+                logger.warning(f"warmup ended on HTTP {status}, page not cleared")
+                return 0
+
+            after = {c["name"] for c in await self._context.cookies()}
+            return len(after - before)
         except Exception as e:  # noqa: BLE001 - diagnostic
             logger.warning(f"warmup error: {e}")
             return -1
@@ -279,14 +294,15 @@ class PageFetcher:
         for attempt in range(MAX_RETRIES):
             await self.rate_limiter.wait()
             if not self._warmed:
-                # Only mark warmed if the challenge actually set cookies; a failed
-                # warm-up (e.g. dead proxy tunnel) should not burn a fetch attempt
-                # on a context that was never cleared.
-                cookies = await self.warmup()
-                if cookies > 0:
+                # Only mark warmed if the challenge actually cleared and set new
+                # cookies; a failed warm-up (e.g. dead proxy tunnel, or a 403
+                # interstitial) should not burn a fetch attempt on a context
+                # that was never cleared.
+                new_cookies = await self.warmup()
+                if new_cookies > 0:
                     self._warmed = True
                 else:
-                    logger.warning("warmup set no cookies, rotating IP")
+                    logger.warning("warmup did not clear, rotating IP")
                     try:
                         await self._init_context()
                     except Exception as reinit_err:
@@ -341,81 +357,6 @@ class PageFetcher:
                     f"Playwright error on {url}: {e}. "
                     f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
                 )
-                try:
-                    await self._init_context()
-                except Exception as reinit_err:
-                    logger.error(f"Failed to reinit context: {reinit_err}")
-                await asyncio.sleep(delay)
-                continue
-
-            finally:
-                if page:
-                    try:
-                        await page.close()
-                    except Exception:
-                        pass
-
-        logger.error(f"All {MAX_RETRIES} retries exhausted for {url}")
-        return None
-
-    async def fetch(
-        self, url: str, params: dict[str, Any] | None = None
-    ) -> str | None:
-        """Navigate to a URL and return the page HTML, or None on failure."""
-        if params:
-            url = f"{url}?{urlencode(params)}"
-
-        for attempt in range(MAX_RETRIES):
-            await self.rate_limiter.wait()
-            page = None
-            try:
-                page = await self._context.new_page()
-                response = await page.goto(
-                    url,
-                    wait_until="domcontentloaded",
-                    timeout=NAV_TIMEOUT_MS,
-                )
-                status = response.status if response else 0
-
-                if status == 200:
-                    html = await page.content()
-                    self.total_bytes += len(html)
-                    return html
-
-                if status == 404:
-                    logger.warning(f"Not found (404): {url}")
-                    return None
-
-                if status == 429:
-                    delay = RETRY_BASE_DELAY * (2 ** attempt)
-                    logger.warning(
-                        f"Rate limited (429) on {url}. "
-                        f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(delay)
-                    continue
-
-                logger.warning(
-                    f"HTTP {status} on {url}. Attempt {attempt + 1}/{MAX_RETRIES}"
-                )
-                # 403/503 = blocked by bot detection, usually IP-reputation tied.
-                # Retrying the same proxy IP just earns another block, so rotate
-                # to a fresh IP + UA/headers before the next attempt.
-                if status in (403, 503):
-                    try:
-                        await self._init_context()
-                    except Exception as reinit_err:
-                        logger.error(f"Failed to reinit context: {reinit_err}")
-                await asyncio.sleep(RETRY_BASE_DELAY)
-                continue
-
-            except Exception as e:
-                delay = RETRY_BASE_DELAY * (attempt + 1)
-                logger.warning(
-                    f"Playwright error on {url}: {e}. "
-                    f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
-                )
-                # Recreate context on error, it may be in a bad state.
                 try:
                     await self._init_context()
                 except Exception as reinit_err:
