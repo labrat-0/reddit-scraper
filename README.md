@@ -470,30 +470,6 @@ Yes. Call the actor via the Apify REST API and poll for results, or use the Apif
 
 The scraper logs a warning and skips the invalid target. All remaining valid targets in the same run continue as normal.
 
-
-
-## Why This Scraper vs Alternatives
-
-| Feature | Reddit Scraper (labrat011) | spry_wholemeal/reddit-scraper (FREE) | trudax/reddit-scraper | harshmaur/reddit-scraper-pro |
-|---|---|---|---|---|
-| **Price per 1k** | **$1.50** | Free (platform compute only) | ~$4 + $45/mo sub | $20/mo |
-| **Rating** | 0.0 (0 reviews) | **5.0** (12 reviews) | 2.5 | 4.7 |
-| **Total Users** | 214 | **1,100** | 14K | 2.8K |
-| **MAU** | 62 | **221** | - | - |
-| **Works after May '26 .json die-off** | ✅ Playwright warm-up | ? | ? | ❌ |
-| **Need Reddit API key / OAuth** | **No** | No | No | No |
-| **MCP Server (AI agent)** | ✅ Apify hosted MCP | ✅ Custom npx MCP | ❌ | ❌ |
-| **NSFW filter** | ✅ | ❌ | ❌ | ❌ |
-| **Controversial sort** | ✅ | ❌ | ❌ | ❌ |
-| **Batch search (multi-query)** | ✅ | ❌ | ❌ | ❌ |
-| **User profile scraping** | ✅ | ❌ | ❌ | ❌ |
-| **Free tier** | ✅ 25 results/run | ✅ Free all results | ❌ | ✅ Limited |
-| **Updated since May '26** | ✅ Yes (v1.2) | Possibly not | Unlikely | Unlikely |
-
-**Key advantages:** After Reddit shut down its public `.json` API in May 2026, this actor was updated to use Playwright-based browser warm-up to solve Cloudflare challenges. Competitors that still depend on the old `.json` endpoints now return 403s. At $1.50/1k, you get affordable scalable results with MCP support, batch search, user profiles, controversial sorting, and an NSFW filter.
-
-**About the free competitor:** spry_wholemeal/reddit-scraper is a solid free option for light use. Its paid counterpart (harshmaur/reddit-scraper-pro) costs $20/mo. Neither offers batch search, user profiles, controversial sort, or NSFW filtering. If you need any of those -- or need to know your scraper works after May 2026 -- this actor is the right choice.
-
 ---
 
 ## 🔗 Related Actors
