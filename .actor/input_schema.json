@@ -108,7 +108,7 @@
         "maxCommentsPerPost": {
             "title": "🔢 Max Comments per Post",
             "type": "integer",
-            "description": "Maximum number of comments to extract per post. Set to 0 for no limit.",
+            "description": "Maximum number of comments to extract per post. Set to 0 for no per-post limit. In Subreddit Posts and Search mode, comments count toward maxResults and a single post may use at most a fifth of it, so one long thread cannot fill the run before the second post is reached. The run log says so when that lowers this number. Post Comments mode is not capped this way: there the thread is the target.",
             "default": 100,
             "minimum": 0
         },
@@ -125,7 +125,7 @@
         "includeComments": {
             "title": "💬 Include Comments with Posts",
             "type": "boolean",
-            "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. Slower and uses more proxy traffic.",
+            "description": "When scraping posts (subreddit or search mode), also fetch comments for each post. Comments count toward maxResults, so raise maxResults when you turn this on. No single post may use more than a fifth of the budget, which keeps a run spread across several posts. To pull one thread in full, use Post Comments mode instead. Slower and uses more proxy traffic.",
             "default": false
         },
         "includeNsfw": {

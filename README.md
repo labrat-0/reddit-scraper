@@ -208,6 +208,8 @@ Results across all queries are merged and deduplicated by post ID. `searchQuerie
 
 `maxResults` is a budget for the whole run, not per query, and it is consumed one query at a time. With six queries and `maxResults: 25`, the first query can use the entire budget and the rest return nothing. Allow at least 25 per query you expect results from.
 
+**Comments share that budget.** With `includeComments` on, every comment is a result, so raise `maxResults` when you turn it on. No single post may take more than a fifth of the budget, so a run always spans several posts rather than one big thread. If you do want one thread in full, that is what Post Comments mode is for: search first, then feed the post URLs into it.
+
 **Restricted to a subreddit:**
 
 ```json
@@ -273,9 +275,9 @@ Extract the full comment tree from specific Reddit posts.
 | `usernames` | string[] | - | Reddit usernames (without u/ prefix). Mode: user_profile |
 | `userContentType` | string | `overview` | `overview` (posts+comments), `submitted`, `comments` |
 | `postUrls` | string[] | - | Full Reddit post URLs. Mode: post_comments |
-| `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no limit |
-| `maxResults` | integer | `100` | Max results for the whole run (1–10,000), shared across all queries and consumed in order. Free tier: 25 per run |
-| `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Slower, higher proxy cost |
+| `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no per-post limit. In subreddit/search mode, also capped at a fifth of `maxResults` |
+| `maxResults` | integer | `100` | Max results for the whole run (1–10,000), shared across all queries and consumed in order. Posts and comments share it. Free tier: 25 per run |
+| `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Counts toward `maxResults`, so raise it when turning this on. Slower, higher proxy cost |
 | `proxyConfiguration` | object | Residential | Proxy settings. Residential proxies required |
 
 ---

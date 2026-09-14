@@ -23,6 +23,13 @@ MAX_PAGES = 400
 MAX_PAGES_FREE = 1
 EMPTY_PAGE_ABORT = 2
 
+# When posts are returned with their comments, the comments of one post must not
+# use the whole run. maxResults is spent in order, so without this a first post
+# with a long thread fills the dataset and no second post is ever reached. Each
+# post may contribute at most a 1/N share of the budget, so a run spans at least
+# this many posts. Post Comments mode is exempt: there the thread IS the target.
+MIN_POSTS_WITH_COMMENTS = 5
+
 
 class RedditScraper:
     """Scrapes Reddit by fetching www.reddit.com `.json` endpoints."""
@@ -32,10 +39,17 @@ class RedditScraper:
         fetcher: PageFetcher,
         config: ScraperInput,
         max_pages: int = MAX_PAGES,
+        max_results: int | None = None,
     ) -> None:
         self.fetcher = fetcher
         self.config = config
         self.max_pages = max_pages
+        # The caller passes the effective budget, which may be lower than the
+        # requested one (free tier). Fall back to the requested value.
+        self.max_results = (
+            max_results if max_results is not None else config.max_results
+        )
+        self._comment_cap_logged = False
 
     async def scrape(self) -> AsyncIterator[dict[str, Any]]:
         """Main entry point, dispatches to the correct mode."""
@@ -226,11 +240,40 @@ class RedditScraper:
 
             comment_listing = data[1] if isinstance(data, list) and len(data) > 1 else None
             results: list[dict[str, Any]] = []
-            self._flatten_comments(self._children(comment_listing), 0, results)
+            # No share cap here: this mode targets the thread itself, so the
+            # caller's maxCommentsPerPost is the only limit.
+            self._flatten_comments(
+                self._children(comment_listing),
+                0,
+                results,
+                self.config.max_comments_per_post,
+            )
             for comment in results:
                 yield comment
 
     # --- Helpers ---
+
+    def _comment_cap_per_post(self) -> int:
+        """How many comments one post may contribute when posts carry comments.
+
+        Bounded by the caller's maxCommentsPerPost and by a 1/N share of the run
+        budget, so a single long thread cannot spend everything before the second
+        post is reached. maxCommentsPerPost of 0 means "no per-post limit", which
+        leaves only the share.
+        """
+        share = max(1, self.max_results // MIN_POSTS_WITH_COMMENTS)
+        configured = self.config.max_comments_per_post
+        cap = share if configured <= 0 else min(configured, share)
+
+        if cap < configured and not self._comment_cap_logged:
+            self._comment_cap_logged = True
+            logger.info(
+                f"Returning up to {cap} comments per post, not {configured}: with "
+                f"maxResults {self.max_results}, one thread would otherwise use the "
+                f"whole run. Raise maxResults for more per post, or use Post "
+                f"Comments mode to pull one thread in full."
+            )
+        return cap
 
     async def _fetch_comments_for_post(
         self, post_id: str
@@ -242,7 +285,9 @@ class RedditScraper:
         if not data or not isinstance(data, list) or len(data) < 2:
             return
         results: list[dict[str, Any]] = []
-        self._flatten_comments(self._children(data[1]), 0, results)
+        self._flatten_comments(
+            self._children(data[1]), 0, results, self._comment_cap_per_post()
+        )
         for comment in results:
             yield comment
 
@@ -251,9 +296,9 @@ class RedditScraper:
         children: list[dict[str, Any]],
         depth: int,
         results: list[dict[str, Any]],
+        max_comments: int,
     ) -> None:
         """Depth-first flatten a comment tree into `results`, honoring the cap."""
-        max_comments = self.config.max_comments_per_post
         for child in children:
             if child.get("kind") != "t1":  # skip "more" placeholders
                 continue
@@ -264,6 +309,8 @@ class RedditScraper:
 
             replies = data.get("replies")
             if isinstance(replies, dict):
-                self._flatten_comments(self._children(replies), depth + 1, results)
+                self._flatten_comments(
+                    self._children(replies), depth + 1, results, max_comments
+                )
                 if max_comments > 0 and len(results) >= max_comments:
                     return

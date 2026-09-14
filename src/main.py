@@ -91,7 +91,9 @@ async def main() -> None:
         cost_exceeded = False
 
         async with PageFetcher(rate_limiter, proxy_config) as fetcher:
-            scraper = RedditScraper(fetcher, config, max_pages=max_pages)
+            scraper = RedditScraper(
+                fetcher, config, max_pages=max_pages, max_results=max_results
+            )
 
             try:
                 async for item in scraper.scrape():
