@@ -1,6 +1,6 @@
 # Reddit Scraper
 
-Scrape Reddit posts, comments, search results, and user profiles at scale. Works with n8n, Make, and Zapier. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines. 97.7% success rate.
+Scrape Reddit posts, comments, search results, and user profiles at scale. Works with n8n, Make, and Zapier. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
 
 ## What does it do?
 
@@ -138,11 +138,12 @@ claude mcp add reddit-scraper \
 - **User profiles:** posts only, comments only, or both
 - **NSFW filter:** optionally include or exclude adult content
 - **Pagination:** automatic page-following up to Reddit's ~1,000-item limit
-- **Browser-grade requests:** Playwright with Chrome TLS impersonation + rotating residential IPs to avoid blocks
+- **Browser-grade requests:** real headless Chrome via Playwright, on rotating residential IPs, to avoid blocks
 - **28 output fields per post** - including upvote ratio, author flair, content type hints, edit timestamps, and crosspost detection
 - **Retry logic:** exponential backoff on 429, IP rotation on 403
 - **Clear empty-run signal:** a run that scrapes 0 results stops with a status message naming the likely cause, and pushes no items, so there is nothing to pay per result
-- **State persistence:** survives Apify actor migrations mid-run
+- **Runaway-run guard:** a run that is being heavily blocked, and so is spending far more time and bandwidth than its results justify, stops early with `Stopped at N items, run resource budget exceeded` rather than burning your budget. Healthy runs never reach it. Re-run to continue
+- **Migration tolerance:** a run interrupted by an Apify platform migration restarts and carries its result count across, rather than failing
 
 ---
 
@@ -432,7 +433,8 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 - Pagination by following the listing's `after` cursor (up to ~1,000 items per listing)
 - Results pushed in batches of 25 for memory efficiency
 - A run that yields 0 results stops with a status message naming the likely cause
-- Actor state persisted across Apify platform migrations
+- A run whose time and bandwidth outgrow what its result count justifies, which in practice means one that is being heavily blocked, stops early and says so in its status message
+- The running result count is persisted, so a platform migration mid-run does not fail the run
 
 ---
 
@@ -440,6 +442,7 @@ AI agents can search Reddit for discussions, scrape subreddit posts, pull commen
 
 - Reddit caps listing pagination at roughly 1,000 items per subreddit/user endpoint
 - `"Load more comments"` nodes in deep comment trees are not expanded - only the initially loaded tree (up to 500 comments/post) is extracted
+- A platform migration mid-run does not resume the exact position. The result count carries over, so the run still finishes at the size you asked for, but items returned before the interruption can appear a second time. Deduplicate on `id` if you run large jobs
 
 
 ---
