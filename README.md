@@ -1,3 +1,5 @@
+<img src="https://apify-image-uploads-prod.s3.us-east-1.amazonaws.com/wCP1WauwRX2Gr3Gir-actor-dejMd0QoBemGH3zTn-FKlav3B3fK-reddit-scraper.png" alt="Reddit Scraper logo" width="120">
+
 # Reddit Scraper
 
 Scrape Reddit posts, comments, search results, and user profiles at scale. Works with n8n, Make, and Zapier. No API keys, no login, no OAuth. Batch search across multiple queries in one run. MCP-ready for AI agent pipelines.
