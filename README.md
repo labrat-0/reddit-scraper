@@ -383,7 +383,7 @@ This actor uses **pay-per-event (PPE) pricing**. You pay for results, not for ma
 - **$0.0015 per result**, charged on each item pushed to the dataset, so **$1.50 per 1,000 results**
 - **$0.02 per GB of actor memory** when the run starts, which is $0.04 on the default 2 GB
 - **Nothing else.** Compute time and residential proxy traffic are not billed to you, they are already covered by the per-result price
-- **Free Apify plan: 25 results per run.** Subscribe to the actor for up to 10,000
+- **Free Apify plan: 25 results per run.** Any paid Apify plan raises the limit to 10,000
 
 **Worked pricing example:**
 Searching for `"python framework"`, sorted by top of the month, returning 100 results on the default 2 GB:

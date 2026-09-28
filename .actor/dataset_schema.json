@@ -6,7 +6,7 @@
     "properties": {
       "type": {
         "type": "string",
-        "description": "Record type \u2014 post or comment",
+        "description": "Record type: post or comment",
         "enum": [
           "post",
           "comment"

@@ -57,7 +57,7 @@ async def main() -> None:
             max_results = min(max_results, FREE_TIER_LIMIT)
             Actor.log.info(
                 f"Free tier: limited to {FREE_TIER_LIMIT} results. "
-                "Subscribe to the actor for unlimited results."
+                "Any paid Apify plan allows up to 10,000."
             )
 
         # Free users need at most 1 page (25 posts), cap pagination to avoid
@@ -123,8 +123,9 @@ async def main() -> None:
                     if est_cost > budget:
                         cost_exceeded = True
                         Actor.log.warning(
-                            f"Cost breaker tripped: est resource cost ~${est_cost:.3f} > "
-                            f"budget ${budget:.3f} after {count} items. Stopping."
+                            f"Stopping after {count} items: this run used too many "
+                            "resources for the results it returned. Narrow the "
+                            "targets or try again later."
                         )
                         await Actor.set_status_message(
                             f"Stopped at {count} items, run resource budget exceeded."
@@ -176,7 +177,7 @@ async def main() -> None:
         ):
             msg += (
                 f" Free tier limit ({FREE_TIER_LIMIT}) reached."
-                " Subscribe for unlimited results."
+                " Any paid Apify plan allows up to 10,000."
             )
 
         Actor.log.info(msg)
