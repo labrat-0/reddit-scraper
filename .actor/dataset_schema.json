@@ -130,7 +130,7 @@
       },
       "isPromoted": {
         "type": "boolean",
-        "description": "Whether the post is a promoted ad (posts only)",
+        "description": "Always false. Reddit listings do not carry promoted ads, kept for schema stability (posts only)",
         "nullable": true,
         "example": false
       },

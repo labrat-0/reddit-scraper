@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 FREE_TIER_LIMIT = 25
 
-# Runaway-cost breaker: abort a run once its estimated compute + proxy spend
-# exceeds the budget its results have earned (with a small floor). This stops
-# wedged or timing-out runs that burn resources for little output, without
-# truncating large efficient runs, whose budget scales with result count.
+# Runaway-run breaker: stop a run once its compute time and proxy traffic
+# outgrow its result count, with a small floor. This catches wedged or
+# heavily blocked runs without truncating large healthy runs, whose
+# allowance scales with result count.
 BUDGET_PER_RESULT_USD = 0.0015
 MIN_COST_ALLOWANCE_USD = 0.05  # headroom before the breaker can ever trip
 CU_RATE_USD_PER_HR = 0.20  # compute unit hour (1GB for 1hr)
@@ -61,7 +61,7 @@ async def main() -> None:
             )
 
         # Free users need at most 1 page (25 posts), cap pagination to avoid
-        # burning proxy budget for users who will never see more than 25 results.
+        # fetching pages for users who will never see more than 25 results.
         max_pages = MAX_PAGES_FREE if not is_paying and os.environ.get("APIFY_IS_AT_HOME") == "1" else MAX_PAGES
 
         Actor.log.info(

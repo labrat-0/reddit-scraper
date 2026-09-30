@@ -280,6 +280,7 @@ Extract the full comment tree from specific Reddit posts.
 | `maxCommentsPerPost` | integer | `100` | Max comments per post. `0` = no per-post limit. In subreddit/search mode, also capped at a fifth of `maxResults` |
 | `maxResults` | integer | `100` | Max results for the whole run (1–10,000), shared across all queries and consumed in order. Posts and comments share it. Free tier: 25 per run |
 | `includeComments` | boolean | `false` | Also fetch comments for each post in subreddit/search mode. Counts toward `maxResults`, so raise it when turning this on. Slower, higher proxy cost |
+| `includeNsfw` | boolean | `false` | Include NSFW posts. Off by default, which drops NSFW posts and the comments on them |
 | `proxyConfiguration` | object | Residential | Proxy settings. Residential proxies required |
 
 ---
@@ -311,7 +312,7 @@ Results are saved to the default dataset. Download as JSON, CSV, Excel, or XML f
 | `domain` | string | Link domain (e.g. `self.python`) |
 | `isVideo` | boolean | Video post flag |
 | `thumbnail` | string | Thumbnail URL (empty for self/text posts) |
-| `isPromoted` | boolean | Whether the post is a promoted ad |
+| `isPromoted` | boolean | Always `false`. Reddit listings do not carry promoted ads, kept for schema stability |
 | `upvoteRatio` | number | Upvote ratio (0–1), community consensus signal |
 | `edited` | timestamp/false | Unix timestamp of last edit, or `false` if never edited |
 | `postHint` | string | Post type hint: `link`, `self`, `image`, `video`, `rich:video` |

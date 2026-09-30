@@ -33,7 +33,7 @@ NAV_TIMEOUT_MS = 25_000
 
 # Resource types aborted before they hit the proxy. images/fonts/media are the
 # bulk of bandwidth and old.reddit HTML parsing never needs them, blocking cuts
-# residential proxy cost ~85%. CSS is deliberately NOT blocked: a real browser
+# proxy bandwidth sharply. CSS is deliberately NOT blocked: a real browser
 # always fetches stylesheets, and their absence makes the request graph look
 # non-human, which trips Reddit's 2026 bot detection (403). Scripts are kept so
 # any Cloudflare JS challenge can still solve.
@@ -106,7 +106,7 @@ class PageFetcher:
     down after scraping completes.
 
     One persistent browser context is reused across all fetches to avoid
-    re-establishing a proxy tunnel on every request (major cost saving).
+    re-establishing a proxy tunnel on every request (much less proxy traffic).
     The context is recreated only if a fatal error forces it.
     """
 
@@ -208,7 +208,7 @@ class PageFetcher:
         ])
 
         # Abort heavy resources at the context level so the route survives the
-        # per-page new_page()/close() cycle in fetch(). Biggest proxy-cost lever.
+        # per-page new_page()/close() cycle in fetch(). Biggest proxy-bandwidth lever.
         await self._context.route("**/*", self._route_handler)
 
     async def _route_handler(self, route: Any) -> None:
